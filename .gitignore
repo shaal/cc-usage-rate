@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+test-results/
+playwright-report/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Package manager lock files (optional, uncomment if desired)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml

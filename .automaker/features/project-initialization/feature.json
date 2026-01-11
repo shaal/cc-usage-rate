@@ -1,0 +1,14 @@
+{
+  "id": "project-initialization",
+  "category": "Core",
+  "title": "Chrome Extension Project Setup",
+  "description": "Initialize the Chrome extension project with Manifest V3 configuration, TypeScript support, and basic folder structure. Set up manifest.json with required permissions for claude.ai domain and content script declarations.",
+  "status": "verified",
+  "priority": 1,
+  "complexity": "simple",
+  "dependencies": [],
+  "createdAt": "2026-01-10T20:42:47.019Z",
+  "updatedAt": "2026-01-10T20:48:37.836Z",
+  "startedAt": "2026-01-10T20:44:50.309Z",
+  "descriptionHistory": []
+}

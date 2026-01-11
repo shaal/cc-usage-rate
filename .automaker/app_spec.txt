@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project_specification>
+  <project_name>Claude Usage Tracker Chrome Extension</project_name>
+
+  <overview>
+    A Chrome extension that enhances the Claude.ai usage settings page by providing visual feedback on usage efficiency. The extension analyzes the user&apos;s current session usage and weekly usage limits, comparing actual usage percentages against expected time-based percentages. It displays color-coded indicators (green/yellow/red) with circular badges to show whether the user is under-utilizing, optimally utilizing, or over-utilizing their Claude quota relative to the time elapsed in the current usage window. This helps users pace their Claude usage to avoid hitting limits prematurely or leaving unused capacity on the table.
+  </overview>
+
+  <technology_stack>
+    <technology>Chrome Extension Manifest V3</technology>
+    <technology>JavaScript/TypeScript</technology>
+    <technology>Chrome Content Scripts API</technology>
+    <technology>Chrome Storage API</technology>
+    <technology>HTML5 Canvas or SVG for circular indicators</technology>
+    <technology>CSS3 for styling and animations</technology>
+    <technology>Webpack or Vite for bundling</technology>
+  </technology_stack>
+
+  <core_capabilities>
+    <capability>Detect and parse usage statistics from claude.ai/settings/usage page</capability>
+    <capability>Calculate session usage efficiency by comparing usage percentage vs time elapsed in 5-hour window</capability>
+    <capability>Calculate weekly usage efficiency by comparing usage percentage vs time elapsed in weekly window</capability>
+    <capability>Display color-coded circular indicators (green/yellow/red) showing relative efficiency</capability>
+    <capability>Automatically update calculations when page content changes</capability>
+    <capability>Parse time remaining strings to calculate elapsed time percentages</capability>
+    <capability>Non-intrusive UI injection that matches Claude&apos;s design aesthetic</capability>
+  </core_capabilities>
+
+  <implemented_features>
+    <feature>
+      <name>Session Usage Tracker</name>
+      <description>Monitors the &apos;Current session&apos; usage section, extracts the reset timer (e.g., &apos;2 hr 48 min&apos;) and usage percentage (e.g., &apos;24%&apos;). Calculates the time elapsed in the 5-hour window, determines the expected usage percentage based on elapsed time, and displays a circular indicator showing the difference. Green indicates usage is below expected (pacing well), yellow indicates usage is near expected (neutral), red indicates usage exceeds expected (at risk of hitting limits).</description>
+      <file_locations>
+        <location>src/content/sessionTracker.ts</location>
+        <location>src/utils/timeCalculations.ts</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Weekly Usage Tracker</name>
+      <description>Monitors the &apos;Weekly limits&apos; usage section, extracts the reset day/time (e.g., &apos;Thu 7:59 AM&apos;) and usage percentage (e.g., &apos;45%&apos;). Calculates how much of the week has elapsed since the last reset, determines expected usage percentage, and displays a color-coded circular indicator showing the relative efficiency for weekly pacing.</description>
+      <file_locations>
+        <location>src/content/weeklyTracker.ts</location>
+        <location>src/utils/weeklyCalculations.ts</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Color-Coded Circular Indicators</name>
+      <description>Renders visual circular badges next to usage statistics. The indicator displays a percentage number inside a colored circle. Color coding: Green (usage is 10%+ below time-based expectation - room to use more), Yellow (usage is within ±10% of expectation - on track), Red (usage is 10%+ above expectation - over-consuming relative to time). The number displayed is the difference percentage (e.g., &apos;+15%&apos; or &apos;-20%&apos;).</description>
+      <file_locations>
+        <location>src/components/UsageIndicator.ts</location>
+        <location>src/styles/indicator.css</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>DOM Observer and Auto-Update</name>
+      <description>Uses MutationObserver to detect changes in the usage page content, automatically recalculating and updating indicators when the timer counts down or usage values change without requiring page refresh.</description>
+      <file_locations>
+        <location>src/content/observer.ts</location>
+      </file_locations>
+    </feature>
+    <feature>
+      <name>Time Parsing Utilities</name>
+      <description>Parses various time formats from the page including relative times (&apos;2 hr 48 min&apos;), day-based resets (&apos;Thu 7:59 AM&apos;), and percentage strings. Converts these to calculable values for efficiency comparisons.</description>
+      <file_locations>
+        <location>src/utils/timeParser.ts</location>
+      </file_locations>
+    </feature>
+  </implemented_features>
+
+  <additional_requirements>
+    <requirement>Chrome browser version 88+ (Manifest V3 support)</requirement>
+    <requirement>Extension permissions: activeTab, scripting for claude.ai domain</requirement>
+    <requirement>Host permissions limited to https://claude.ai/*</requirement>
+    <requirement>No external API calls or data collection - all processing happens locally</requirement>
+    <requirement>Must not interfere with existing page functionality</requirement>
+  </additional_requirements>
+
+  <development_guidelines>
+    <guideline>Follow Chrome Extension Manifest V3 best practices</guideline>
+    <guideline>Use TypeScript for type safety and better maintainability</guideline>
+    <guideline>Implement graceful degradation if page structure changes</guideline>
+    <guideline>Use semantic versioning for releases</guideline>
+    <guideline>Include error handling for edge cases (page not fully loaded, missing elements)</guideline>
+    <guideline>Minimize performance impact with efficient DOM queries and debounced updates</guideline>
+    <guideline>Match Claude.ai&apos;s visual design language for seamless integration</guideline>
+    <guideline>Test across different usage states (0%, 50%, 100% usage scenarios)</guideline>
+  </development_guidelines>
+
+  <implementation_roadmap>
+    <phase>
+      <name>Project Setup</name>
+      <status>pending</status>
+      <description>Initialize Chrome extension project structure with Manifest V3, configure TypeScript and bundler (Vite), set up development environment with hot reload for extension development</description>
+    </phase>
+    <phase>
+      <name>Time Calculation Engine</name>
+      <status>pending</status>
+      <description>Build utility functions to parse time strings from the page, calculate elapsed percentages for both 5-hour session windows and weekly windows, and determine the efficiency delta between actual and expected usage</description>
+    </phase>
+    <phase>
+      <name>DOM Integration</name>
+      <status>pending</status>
+      <description>Create content script that identifies and extracts usage data from the claude.ai/settings/usage page, implement MutationObserver for real-time updates as timers count down</description>
+    </phase>
+    <phase>
+      <name>Visual Indicator Component</name>
+      <status>pending</status>
+      <description>Design and implement the circular color-coded indicator component using SVG or Canvas, ensure it integrates seamlessly with Claude&apos;s UI, implement the green/yellow/red color logic based on efficiency thresholds</description>
+    </phase>
+    <phase>
+      <name>UI Injection and Styling</name>
+      <status>pending</status>
+      <description>Inject indicators into the correct positions on the page adjacent to usage statistics, apply styling that matches Claude&apos;s design system, ensure responsive behavior</description>
+    </phase>
+    <phase>
+      <name>Testing and Polish</name>
+      <status>pending</status>
+      <description>Test across various usage scenarios and edge cases, handle errors gracefully, optimize performance, prepare for Chrome Web Store submission with icons and descriptions</description>
+    </phase>
+  </implementation_roadmap>
+</project_specification>

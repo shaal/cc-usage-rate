@@ -1,0 +1,18 @@
+{
+  "id": "usage-data-extractor",
+  "category": "Core",
+  "title": "Usage Data Extraction",
+  "description": "Extract usage percentages, remaining time values, and reset information from the DOM elements identified on the usage page. Parse the text content and convert to usable data structures.",
+  "status": "verified",
+  "priority": 1,
+  "complexity": "moderate",
+  "dependencies": [
+    "dom-element-detector",
+    "time-string-parser"
+  ],
+  "createdAt": "2026-01-10T20:42:47.026Z",
+  "updatedAt": "2026-01-10T21:06:01.474Z",
+  "branchName": "master",
+  "descriptionHistory": [],
+  "startedAt": "2026-01-10T20:59:46.504Z"
+}

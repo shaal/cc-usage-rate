@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tooltip Test Page</title>
+  <link rel="stylesheet" href="../public/content.css">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 40px;
+      background-color: #1a1a1a;
+      color: #ffffff;
+    }
+    .test-container {
+      display: flex;
+      gap: 40px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+    .indicator-test {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .indicator-test label {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+    h1 {
+      margin-bottom: 30px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Tooltip Feature Test</h1>
+
+  <div class="test-container">
+    <div class="indicator-test">
+      <div id="indicator-green" class="claude-usage-circular-indicator" data-color="green" data-percentage="-25" tabindex="0">
+        <svg width="48" height="48" viewBox="0 0 48 48">
+          <circle cx="24" cy="24" r="20" fill="rgba(34, 197, 94, 0.15)" stroke="rgba(34, 197, 94, 0.3)" stroke-width="4"/>
+          <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" fill="#4ade80" font-size="11" font-weight="600">-25%</text>
+        </svg>
+      </div>
+      <label>Under Usage (Green)</label>
+    </div>
+
+    <div class="indicator-test">
+      <div id="indicator-yellow" class="claude-usage-circular-indicator" data-color="yellow" data-percentage="5" tabindex="0">
+        <svg width="48" height="48" viewBox="0 0 48 48">
+          <circle cx="24" cy="24" r="20" fill="rgba(234, 179, 8, 0.15)" stroke="rgba(234, 179, 8, 0.3)" stroke-width="4"/>
+          <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" fill="#facc15" font-size="11" font-weight="600">+5%</text>
+        </svg>
+      </div>
+      <label>On Track (Yellow)</label>
+    </div>
+
+    <div class="indicator-test">
+      <div id="indicator-red" class="claude-usage-circular-indicator" data-color="red" data-percentage="30" tabindex="0">
+        <svg width="48" height="48" viewBox="0 0 48 48">
+          <circle cx="24" cy="24" r="20" fill="rgba(239, 68, 68, 0.15)" stroke="rgba(239, 68, 68, 0.3)" stroke-width="4"/>
+          <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" fill="#f87171" font-size="11" font-weight="600">+30%</text>
+        </svg>
+      </div>
+      <label>Over Usage (Red)</label>
+    </div>
+  </div>
+
+  <script type="module">
+    // Import the tooltip manager
+    import { attachTooltip, generateSessionTooltipContent, generateWeeklyTooltipContent } from '../dist/content.js';
+
+    // Fallback if module isn't available - define inline
+    function createSimpleTooltip() {
+      const tooltip = document.createElement('div');
+      tooltip.className = 'claude-usage-tooltip claude-usage-tooltip--enhanced';
+      tooltip.style.display = 'none';
+      document.body.appendChild(tooltip);
+      return tooltip;
+    }
+
+    function showTooltip(target, content, tooltip) {
+      tooltip.innerHTML = `
+        <div class="claude-usage-tooltip__title">${content.title}</div>
+        ${content.sections.map(section => `
+          <div class="claude-usage-tooltip__section">
+            ${section.title ? `<div class="claude-usage-tooltip__section-title">${section.title}</div>` : ''}
+            ${section.lines.map(line => `<div class="claude-usage-tooltip__line">${line}</div>`).join('')}
+          </div>
+        `).join('')}
+        ${content.status ? `<div class="claude-usage-tooltip__status claude-usage-tooltip__status--${content.status}">${content.status === 'under' ? 'Under Usage' : content.status === 'over' ? 'Over Usage' : 'On Track'}</div>` : ''}
+        ${content.guidance ? `<div class="claude-usage-tooltip__guidance">${content.guidance}</div>` : ''}
+      `;
+
+      const rect = target.getBoundingClientRect();
+      tooltip.style.display = 'block';
+      tooltip.style.top = `${rect.top - tooltip.offsetHeight - 10 + window.scrollY}px`;
+      tooltip.style.left = `${rect.left + (rect.width - tooltip.offsetWidth) / 2 + window.scrollX}px`;
+      tooltip.classList.add('claude-usage-tooltip--visible');
+    }
+
+    function hideTooltip(tooltip) {
+      tooltip.classList.remove('claude-usage-tooltip--visible');
+      setTimeout(() => tooltip.style.display = 'none', 200);
+    }
+
+    // Initialize tooltips for each indicator
+    const tooltip = createSimpleTooltip();
+
+    // Green indicator (under usage)
+    const greenIndicator = document.getElementById('indicator-green');
+    const greenContent = {
+      title: 'Session Efficiency',
+      sections: [
+        {
+          title: 'What does this mean?',
+          lines: [
+            'This shows how your current usage compares',
+            'to the expected usage at this point in your session.',
+          ],
+        },
+        {
+          title: 'Current Status',
+          lines: [
+            'Actual usage: 25%',
+            'Expected usage: 50%',
+            'Difference: -25%',
+          ],
+        },
+      ],
+      status: 'under',
+      guidance: 'You have room to use Claude more in this session.',
+    };
+
+    greenIndicator.addEventListener('mouseenter', () => showTooltip(greenIndicator, greenContent, tooltip));
+    greenIndicator.addEventListener('mouseleave', () => hideTooltip(tooltip));
+
+    // Yellow indicator (on track)
+    const yellowIndicator = document.getElementById('indicator-yellow');
+    const yellowContent = {
+      title: 'Session Efficiency',
+      sections: [
+        {
+          title: 'What does this mean?',
+          lines: [
+            'This shows how your current usage compares',
+            'to the expected usage at this point in your session.',
+          ],
+        },
+        {
+          title: 'Current Status',
+          lines: [
+            'Actual usage: 55%',
+            'Expected usage: 50%',
+            'Difference: +5%',
+          ],
+        },
+      ],
+      status: 'on-track',
+      guidance: 'Your usage is well-balanced. Keep up the good work!',
+    };
+
+    yellowIndicator.addEventListener('mouseenter', () => showTooltip(yellowIndicator, yellowContent, tooltip));
+    yellowIndicator.addEventListener('mouseleave', () => hideTooltip(tooltip));
+
+    // Red indicator (over usage)
+    const redIndicator = document.getElementById('indicator-red');
+    const redContent = {
+      title: 'Weekly Efficiency',
+      sections: [
+        {
+          title: 'What does this mean?',
+          lines: [
+            'This shows your weekly usage compared to',
+            'where you should be based on time elapsed.',
+          ],
+        },
+        {
+          title: 'Current Status',
+          lines: [
+            'Actual usage: 80%',
+            'Expected usage: 50%',
+            'Difference: +30%',
+            'Time until reset: 3 days 4 hours',
+          ],
+        },
+      ],
+      status: 'over',
+      guidance: "You're using more than expected. Consider spreading usage evenly throughout the week.",
+    };
+
+    redIndicator.addEventListener('mouseenter', () => showTooltip(redIndicator, redContent, tooltip));
+    redIndicator.addEventListener('mouseleave', () => hideTooltip(tooltip));
+
+    console.log('Tooltip test page initialized');
+  </script>
+</body>
+</html>

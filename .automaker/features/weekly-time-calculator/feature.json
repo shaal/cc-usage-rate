@@ -1,0 +1,17 @@
+{
+  "id": "weekly-time-calculator",
+  "category": "Core",
+  "title": "Weekly Window Time Calculations",
+  "description": "Implement calculations to determine elapsed time percentage within the weekly usage window based on the reset day/time. Handle timezone considerations and calculate expected weekly usage percentage.",
+  "status": "verified",
+  "priority": 1,
+  "complexity": "complex",
+  "dependencies": [
+    "time-string-parser"
+  ],
+  "createdAt": "2026-01-10T20:42:47.023Z",
+  "updatedAt": "2026-01-10T21:00:36.475Z",
+  "branchName": "master",
+  "descriptionHistory": [],
+  "startedAt": "2026-01-10T20:55:14.971Z"
+}

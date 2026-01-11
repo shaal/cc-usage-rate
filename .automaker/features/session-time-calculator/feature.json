@@ -1,0 +1,17 @@
+{
+  "id": "session-time-calculator",
+  "category": "Core",
+  "title": "Session Window Time Calculations",
+  "description": "Implement calculations to determine elapsed time percentage within the 5-hour session window based on the remaining time displayed. Calculate expected usage percentage based on time elapsed.",
+  "status": "verified",
+  "priority": 1,
+  "complexity": "moderate",
+  "dependencies": [
+    "time-string-parser"
+  ],
+  "createdAt": "2026-01-10T20:42:47.022Z",
+  "updatedAt": "2026-01-10T20:58:30.458Z",
+  "branchName": "master",
+  "descriptionHistory": [],
+  "startedAt": "2026-01-10T20:55:14.216Z"
+}

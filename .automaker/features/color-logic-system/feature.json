@@ -1,0 +1,17 @@
+{
+  "id": "color-logic-system",
+  "category": "UI",
+  "title": "Color-Coding Logic Implementation",
+  "description": "Implement the threshold-based color logic that determines whether to display green, yellow, or red based on the efficiency delta. Green for 10%+ below expected, yellow for within ±10%, red for 10%+ above expected.",
+  "status": "verified",
+  "priority": 1,
+  "complexity": "simple",
+  "dependencies": [
+    "efficiency-delta-calculator"
+  ],
+  "createdAt": "2026-01-10T20:42:47.028Z",
+  "updatedAt": "2026-01-10T21:09:04.787Z",
+  "branchName": "master",
+  "descriptionHistory": [],
+  "startedAt": "2026-01-10T21:06:25.581Z"
+}

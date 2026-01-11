@@ -1,0 +1,20 @@
+{
+  "id": "edge-case-testing",
+  "category": "Core",
+  "title": "Comprehensive Edge Case Testing",
+  "description": "Test the extension across various usage scenarios including 0%, 50%, 100% usage states, different time zones, week boundary transitions, and rapid usage changes. Validate all calculations and visual states.",
+  "status": "verified",
+  "priority": 2,
+  "complexity": "moderate",
+  "dependencies": [
+    "session-tracker-integration",
+    "weekly-tracker-integration",
+    "mutation-observer",
+    "error-handling"
+  ],
+  "createdAt": "2026-01-10T20:42:47.038Z",
+  "updatedAt": "2026-01-10T21:46:39.585Z",
+  "branchName": "master",
+  "descriptionHistory": [],
+  "startedAt": "2026-01-10T21:40:35.184Z"
+}

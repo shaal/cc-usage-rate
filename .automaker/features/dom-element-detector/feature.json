@@ -1,0 +1,17 @@
+{
+  "id": "dom-element-detector",
+  "category": "Core",
+  "title": "Usage Page DOM Element Detection",
+  "description": "Create content script that identifies and locates usage statistics sections on claude.ai/settings/usage page. Implement robust selectors to find session and weekly usage containers, timer elements, and percentage displays.",
+  "status": "verified",
+  "priority": 1,
+  "complexity": "moderate",
+  "dependencies": [
+    "build-system-configuration"
+  ],
+  "createdAt": "2026-01-10T20:42:47.025Z",
+  "updatedAt": "2026-01-10T20:59:25.599Z",
+  "branchName": "master",
+  "descriptionHistory": [],
+  "startedAt": "2026-01-10T20:53:13.964Z"
+}

@@ -1,0 +1,17 @@
+{
+  "id": "tooltip-explanations",
+  "category": "UI",
+  "title": "Indicator Tooltip Explanations",
+  "description": "Add hover tooltips to circular indicators that explain what the percentage means, provide context on efficiency status, and offer guidance on pacing. Enhance user understanding of the metrics.",
+  "status": "verified",
+  "priority": 2,
+  "complexity": "simple",
+  "dependencies": [
+    "indicator-injection"
+  ],
+  "createdAt": "2026-01-10T20:42:47.036Z",
+  "updatedAt": "2026-01-10T21:43:01.266Z",
+  "branchName": "master",
+  "descriptionHistory": [],
+  "startedAt": "2026-01-10T21:33:37.832Z"
+}

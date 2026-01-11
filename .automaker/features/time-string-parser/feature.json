@@ -1,0 +1,17 @@
+{
+  "id": "time-string-parser",
+  "category": "Core",
+  "title": "Time String Parsing Utilities",
+  "description": "Build utility functions to parse various time formats from the Claude usage page, including relative times like '2 hr 48 min' and absolute times like 'Thu 7:59 AM'. Convert these to standardized time values for calculations.",
+  "status": "verified",
+  "priority": 1,
+  "complexity": "moderate",
+  "dependencies": [
+    "project-initialization"
+  ],
+  "createdAt": "2026-01-10T20:42:47.021Z",
+  "updatedAt": "2026-01-10T20:52:06.904Z",
+  "branchName": "master",
+  "descriptionHistory": [],
+  "startedAt": "2026-01-10T20:49:01.537Z"
+}
