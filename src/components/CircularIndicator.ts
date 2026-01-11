@@ -238,7 +238,6 @@ export function updateCircularIndicator(
   options: Partial<CircularIndicatorOptions>
 ): void {
   const currentPercentage = Number(container.getAttribute('data-percentage') || 0);
-  const currentColor = (container.getAttribute('data-color') as IndicatorColor) || 'green';
   const size = options.size ?? 48;
   const strokeWidth = options.strokeWidth ?? 4;
 
