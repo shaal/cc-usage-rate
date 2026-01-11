@@ -578,8 +578,7 @@ export class SessionTracker {
           updateCircularIndicator(sessionIndicator, {
             percentage: delta,
           });
-          sessionIndicator.classList.add('claude-usage-indicator-updating');
-          setTimeout(() => sessionIndicator.classList.remove('claude-usage-indicator-updating'), 300);
+          // Note: Removed animation class toggle to prevent mutation observer feedback loop
         }
       } catch (e) {
         const error = handler.createError(
@@ -608,8 +607,7 @@ export class SessionTracker {
           updateCircularIndicator(weeklyIndicator, {
             percentage: delta,
           });
-          weeklyIndicator.classList.add('claude-usage-indicator-updating');
-          setTimeout(() => weeklyIndicator.classList.remove('claude-usage-indicator-updating'), 300);
+          // Note: Removed animation class toggle to prevent mutation observer feedback loop
         }
       } catch (e) {
         const error = handler.createError(
