@@ -169,7 +169,8 @@ export function createWeeklyTracker(
           efficiency.expectedUsagePercentage,
           efficiency.efficiencyDelta,
           timeDetails?.remainingFormatted ?? null,
-          getStatusMessage(efficiency.status)
+          getStatusMessage(efficiency.status),
+          efficiency.hoursToZeroDeltaFormatted
         )
       : undefined;
 
@@ -224,7 +225,8 @@ export function createWeeklyTracker(
             newEfficiency.expectedUsagePercentage,
             newEfficiency.efficiencyDelta,
             newTimeDetails?.remainingFormatted ?? null,
-            getStatusMessage(newEfficiency.status)
+            getStatusMessage(newEfficiency.status),
+            newEfficiency.hoursToZeroDeltaFormatted
           )
         : undefined;
 

@@ -363,7 +363,8 @@ export function generateWeeklyTooltipContent(
   expectedUsage: number,
   delta: number,
   timeRemaining: string | null,
-  _statusMessage: string
+  _statusMessage: string,
+  hoursToZeroDeltaFormatted?: string | null
 ): TooltipContent {
   const status: 'under' | 'on-track' | 'over' =
     delta <= -10 ? 'under' : delta >= 10 ? 'over' : 'on-track';
@@ -373,7 +374,11 @@ export function generateWeeklyTooltipContent(
   if (status === 'under') {
     guidance = 'You have unused capacity this week. Feel free to use Claude more!';
   } else if (status === 'over') {
-    guidance = 'You\'re using more than expected. Consider spreading usage evenly throughout the week.';
+    if (hoursToZeroDeltaFormatted) {
+      guidance = `If you pause now, you'll be back on track in ${hoursToZeroDeltaFormatted}.`;
+    } else {
+      guidance = 'You\'re using more than expected. Consider spreading usage evenly throughout the week.';
+    }
   } else {
     guidance = 'Your weekly usage is on track. You\'re pacing well!';
   }
@@ -383,6 +388,10 @@ export function generateWeeklyTooltipContent(
     `Expected usage: ${Math.round(expectedUsage)}%`,
     `Difference: ${delta >= 0 ? '+' : ''}${Math.round(delta)}%`,
   ];
+
+  if (hoursToZeroDeltaFormatted && delta > 0) {
+    statusLines.push(`Time to on-track: ${hoursToZeroDeltaFormatted}`);
+  }
 
   if (timeRemaining) {
     statusLines.push(`Time until reset: ${timeRemaining}`);

@@ -64,6 +64,10 @@ export interface UsageEfficiencyResult {
   status: 'under' | 'on-track' | 'over';
   /** Weekly time calculation details */
   timeDetails: WeeklyTimeResult;
+  /** Hours until delta reaches 0% (if over-utilizing and you stop using), null if not applicable */
+  hoursToZeroDelta: number | null;
+  /** Formatted string for hours to zero delta (e.g., "2 hr 30 min") */
+  hoursToZeroDeltaFormatted: string | null;
 }
 
 /**
@@ -313,6 +317,83 @@ export function formatRemainingTime(totalMinutes: number): string {
 }
 
 /**
+ * Calculates how many hours until the efficiency delta reaches 0%
+ * (assuming no further usage).
+ *
+ * This is only meaningful when over-utilizing (delta > 0).
+ * If you're at +20% delta and stop using Claude, time continues passing,
+ * and eventually your "expected usage" catches up to your actual usage.
+ *
+ * @param actualUsagePercentage - The actual usage percentage (0-100)
+ * @param currentElapsedMinutes - Minutes elapsed since last reset
+ * @returns Hours until delta reaches 0, or null if not applicable
+ */
+export function calculateHoursToZeroDelta(
+  actualUsagePercentage: number,
+  currentElapsedMinutes: number
+): number | null {
+  // Only meaningful when over-utilizing (actual > expected)
+  const currentExpected = (currentElapsedMinutes / MINUTES_PER_WEEK) * 100;
+  const delta = actualUsagePercentage - currentExpected;
+
+  if (delta <= 0) {
+    // Already at or below expected usage, no wait needed
+    return null;
+  }
+
+  // Calculate when expected usage will equal actual usage
+  // actualUsage = (newElapsedMinutes / MINUTES_PER_WEEK) * 100
+  // Solving for newElapsedMinutes:
+  // newElapsedMinutes = (actualUsage / 100) * MINUTES_PER_WEEK
+  const minutesWhenOnTrack = (actualUsagePercentage / 100) * MINUTES_PER_WEEK;
+  const additionalMinutesNeeded = minutesWhenOnTrack - currentElapsedMinutes;
+
+  if (additionalMinutesNeeded <= 0) {
+    return null;
+  }
+
+  // Cap at remaining time in the week (can't wait past reset)
+  const remainingMinutes = MINUTES_PER_WEEK - currentElapsedMinutes;
+  const effectiveMinutes = Math.min(additionalMinutesNeeded, remainingMinutes);
+
+  return effectiveMinutes / 60;
+}
+
+/**
+ * Formats hours to a human-readable string
+ *
+ * @param hours - Total hours
+ * @returns Formatted string like "2 hr 30 min" or "1 day 5 hr"
+ */
+export function formatHoursToZeroDelta(hours: number): string {
+  if (hours <= 0) {
+    return '0 min';
+  }
+
+  const totalMinutes = Math.round(hours * 60);
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const remainingAfterDays = totalMinutes % (24 * 60);
+  const hrs = Math.floor(remainingAfterDays / 60);
+  const mins = remainingAfterDays % 60;
+
+  const parts: string[] = [];
+
+  if (days > 0) {
+    parts.push(`${days} day${days === 1 ? '' : 's'}`);
+  }
+
+  if (hrs > 0) {
+    parts.push(`${hrs} hr`);
+  }
+
+  if (mins > 0 || parts.length === 0) {
+    parts.push(`${mins} min`);
+  }
+
+  return parts.join(' ');
+}
+
+/**
  * Calculates usage efficiency by comparing actual usage to expected usage
  * based on elapsed time in the weekly window.
  *
@@ -342,12 +423,23 @@ export function calculateUsageEfficiency(
     status = 'on-track';
   }
 
+  // Calculate hours to zero delta (only meaningful when over-utilizing)
+  const hoursToZeroDelta = calculateHoursToZeroDelta(
+    actualUsagePercentage,
+    timeDetails.elapsedMinutes
+  );
+  const hoursToZeroDeltaFormatted = hoursToZeroDelta !== null
+    ? formatHoursToZeroDelta(hoursToZeroDelta)
+    : null;
+
   return {
     actualUsagePercentage,
     expectedUsagePercentage,
     efficiencyDelta,
     status,
     timeDetails,
+    hoursToZeroDelta,
+    hoursToZeroDeltaFormatted,
   };
 }
 

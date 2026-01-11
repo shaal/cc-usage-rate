@@ -352,7 +352,8 @@ export class SessionTracker {
         weeklyEfficiency.expectedUsagePercentage,
         delta,
         weeklyTime?.remainingFormatted ?? null,
-        analysis.summary.weeklyStatus
+        analysis.summary.weeklyStatus,
+        weeklyEfficiency.hoursToZeroDeltaFormatted
       );
 
       const indicator = createAutoColorIndicator(delta, {
