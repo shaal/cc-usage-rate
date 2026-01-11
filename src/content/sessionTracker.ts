@@ -635,7 +635,9 @@ export class SessionTracker {
 
     try {
       // Detect DOM elements
-      const detection = detectUsageElements();
+      // Use silent mode if we haven't successfully detected before (to avoid spam during page load)
+      const hadPreviousSuccess = this.state.detection?.isValid ?? false;
+      const detection = detectUsageElements({ silent: !hadPreviousSuccess });
       this.state.detection = detection;
 
       // Add any detection errors to state

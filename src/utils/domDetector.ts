@@ -338,8 +338,10 @@ function findTimerElement(container: HTMLElement, errors: TrackerError[]): HTMLE
 
 /**
  * Detect usage section containers using the actual Claude.ai page structure
+ * @param errors Array to collect errors
+ * @param silent If true, suppress warning logs (useful during retry loops)
  */
-function detectUsageSections(errors: TrackerError[]): {
+function detectUsageSections(errors: TrackerError[], silent: boolean = false): {
   sessionContainer: HTMLElement | null;
   weeklyContainer: HTMLElement | null;
 } {
@@ -415,7 +417,8 @@ function detectUsageSections(errors: TrackerError[]): {
     }
 
     // Log if both containers are missing - may indicate page structure change
-    if (!sessionContainer && !weeklyContainer) {
+    // Only log if not in silent mode (to avoid spam during retry loops)
+    if (!sessionContainer && !weeklyContainer && !silent) {
       const error = handler.createError(
         ErrorCodes.STRUCTURE_CHANGED,
         'Neither session nor weekly usage containers found - page structure may have changed',
@@ -450,12 +453,23 @@ export function invalidateDOMCache(): void {
 }
 
 /**
+ * Options for detecting usage elements
+ */
+export interface DetectUsageElementsOptions {
+  /** Custom selector configuration */
+  config?: Partial<SelectorConfig>;
+  /** If true, suppress warning logs (useful during retry loops) */
+  silent?: boolean;
+}
+
+/**
  * Main detection function - identifies and locates all usage statistics elements
  *
- * @param config Optional custom selector configuration
+ * @param options Optional detection options (config and silent mode)
  * @returns DOMDetectionResult containing all detected elements
  */
-export function detectUsageElements(_config?: Partial<SelectorConfig>): DOMDetectionResult {
+export function detectUsageElements(options?: DetectUsageElementsOptions): DOMDetectionResult {
+  const { silent = false } = options || {};
   const errors: TrackerError[] = [];
   const handler = getErrorHandler();
 
@@ -479,7 +493,7 @@ export function detectUsageElements(_config?: Partial<SelectorConfig>): DOMDetec
 
   try {
     // Detect main usage sections using new strategy
-    const { sessionContainer, weeklyContainer } = detectUsageSections(errors);
+    const { sessionContainer, weeklyContainer } = detectUsageSections(errors, silent);
     result.sessionContainer = sessionContainer;
     result.weeklyContainer = weeklyContainer;
 
@@ -524,7 +538,8 @@ export function detectUsageElements(_config?: Partial<SelectorConfig>): DOMDetec
         degraded: result.degraded,
         errorCount: errors.length,
       });
-    } else {
+    } else if (!silent) {
+      // Only warn if not in silent mode (to avoid spam during retry loops)
       warnLog('DOM detection failed - no usage elements found');
     }
   } catch (e) {
@@ -564,7 +579,11 @@ export async function waitForUsageElements(
   return new Promise((resolve) => {
     const checkElements = () => {
       try {
-        const result = detectUsageElements();
+        const elapsed = Date.now() - startTime;
+        const isLastAttempt = elapsed + pollInterval >= timeout;
+
+        // Use silent mode during retries, only log on final attempt
+        const result = detectUsageElements({ silent: !isLastAttempt });
 
         if (result.isValid) {
           debugLog('Found usage elements after waiting');
@@ -572,8 +591,8 @@ export async function waitForUsageElements(
           return;
         }
 
-        const elapsed = Date.now() - startTime;
         if (elapsed >= timeout) {
+          // Final attempt failed - log the timeout
           const error = handler.createError(
             ErrorCodes.PAGE_LOAD_TIMEOUT,
             `Timeout waiting for usage elements after ${timeout}ms`,
