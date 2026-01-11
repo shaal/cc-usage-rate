@@ -430,3 +430,203 @@
     filter: brightness(1.1) drop-shadow(0 4px 16px rgba(248, 113, 113, 0.45));
   }
 }
+
+/* ============================================
+   Sport-Car Gauge Indicator Styles
+   Semicircular gauge with 0% at center,
+   fills outward toward edges like a tachometer
+   ============================================ */
+
+/* Gauge container - same base as circular but with gauge modifier */
+.claude-usage-gauge {
+  border-radius: var(--claude-radius-md);
+}
+
+/* Background track arc */
+.claude-usage-gauge__track {
+  opacity: 0.4;
+}
+
+/* Progress fill arc - animates smoothly */
+.claude-usage-gauge__fill {
+  transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+              stroke 0.3s ease;
+}
+
+/* Tick marks for gauge aesthetic */
+.claude-usage-gauge__ticks line {
+  transition: stroke 0.3s ease;
+}
+
+/* Center pivot dot */
+.claude-usage-gauge__center {
+  transition: fill 0.3s ease;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+/* Text styling for gauge */
+.claude-usage-gauge__text {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Gauge-specific hover effects */
+.claude-usage-gauge:hover .claude-usage-gauge__center {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.claude-usage-gauge:hover .claude-usage-gauge__fill {
+  filter: brightness(1.1);
+}
+
+/* Color-specific gauge glow effects */
+.claude-usage-gauge[data-color="green"] .claude-usage-gauge__fill {
+  filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.3));
+}
+
+.claude-usage-gauge[data-color="green"]:hover .claude-usage-gauge__fill {
+  filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.5)) brightness(1.1);
+}
+
+.claude-usage-gauge[data-color="yellow"] .claude-usage-gauge__fill {
+  filter: drop-shadow(0 0 4px rgba(234, 179, 8, 0.3));
+}
+
+.claude-usage-gauge[data-color="yellow"]:hover .claude-usage-gauge__fill {
+  filter: drop-shadow(0 0 8px rgba(234, 179, 8, 0.5)) brightness(1.1);
+}
+
+.claude-usage-gauge[data-color="red"] .claude-usage-gauge__fill {
+  filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.3));
+}
+
+.claude-usage-gauge[data-color="red"]:hover .claude-usage-gauge__fill {
+  filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.5)) brightness(1.1);
+}
+
+/* Dark mode gauge adjustments */
+@media (prefers-color-scheme: dark) {
+  .claude-usage-gauge__track {
+    opacity: 0.5;
+  }
+
+  .claude-usage-gauge__center {
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.4));
+  }
+
+  .claude-usage-gauge[data-color="green"] .claude-usage-gauge__fill {
+    filter: drop-shadow(0 0 6px rgba(74, 222, 128, 0.4));
+  }
+
+  .claude-usage-gauge[data-color="green"]:hover .claude-usage-gauge__fill {
+    filter: drop-shadow(0 0 12px rgba(74, 222, 128, 0.6)) brightness(1.15);
+  }
+
+  .claude-usage-gauge[data-color="yellow"] .claude-usage-gauge__fill {
+    filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.4));
+  }
+
+  .claude-usage-gauge[data-color="yellow"]:hover .claude-usage-gauge__fill {
+    filter: drop-shadow(0 0 12px rgba(250, 204, 21, 0.6)) brightness(1.15);
+  }
+
+  .claude-usage-gauge[data-color="red"] .claude-usage-gauge__fill {
+    filter: drop-shadow(0 0 6px rgba(248, 113, 113, 0.4));
+  }
+
+  .claude-usage-gauge[data-color="red"]:hover .claude-usage-gauge__fill {
+    filter: drop-shadow(0 0 12px rgba(248, 113, 113, 0.6)) brightness(1.15);
+  }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .claude-usage-gauge__fill,
+  .claude-usage-gauge__center,
+  .claude-usage-gauge__ticks line,
+  .claude-usage-gauge__needle-group,
+  .claude-usage-gauge__needle {
+    transition: none !important;
+  }
+}
+
+/* ============================================
+   Needle Gauge Styles
+   Sport-car style gauge with rotating needle
+   ============================================ */
+
+/* Needle group - handles rotation animation */
+.claude-usage-gauge__needle-group {
+  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: center;
+}
+
+/* Needle shape */
+.claude-usage-gauge__needle {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+  transition: fill 0.3s ease;
+}
+
+/* Hover effect on needle */
+.claude-usage-gauge:hover .claude-usage-gauge__needle {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+/* Color zones on the gauge track */
+.claude-usage-gauge__zone {
+  opacity: 0.6;
+}
+
+.claude-usage-gauge__zone--green {
+  stroke: rgba(34, 197, 94, 0.6) !important;
+}
+
+.claude-usage-gauge__zone--yellow {
+  stroke: rgba(234, 179, 8, 0.6) !important;
+}
+
+.claude-usage-gauge__zone--red {
+  stroke: rgba(239, 68, 68, 0.6) !important;
+}
+
+/* Scale labels */
+.claude-usage-gauge__labels text {
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+/* Needle color variants based on state */
+.claude-usage-gauge[data-color="green"] .claude-usage-gauge__needle {
+  filter: drop-shadow(0 1px 3px rgba(34, 197, 94, 0.4));
+}
+
+.claude-usage-gauge[data-color="yellow"] .claude-usage-gauge__needle {
+  filter: drop-shadow(0 1px 3px rgba(234, 179, 8, 0.4));
+}
+
+.claude-usage-gauge[data-color="red"] .claude-usage-gauge__needle {
+  filter: drop-shadow(0 1px 3px rgba(239, 68, 68, 0.4));
+}
+
+/* Dark mode needle adjustments */
+@media (prefers-color-scheme: dark) {
+  .claude-usage-gauge__zone {
+    opacity: 0.7;
+  }
+
+  .claude-usage-gauge__needle {
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+  }
+
+  .claude-usage-gauge[data-color="green"] .claude-usage-gauge__needle {
+    filter: drop-shadow(0 2px 6px rgba(74, 222, 128, 0.5));
+  }
+
+  .claude-usage-gauge[data-color="yellow"] .claude-usage-gauge__needle {
+    filter: drop-shadow(0 2px 6px rgba(250, 204, 21, 0.5));
+  }
+
+  .claude-usage-gauge[data-color="red"] .claude-usage-gauge__needle {
+    filter: drop-shadow(0 2px 6px rgba(248, 113, 113, 0.5));
+  }
+}

@@ -127,7 +127,7 @@ async function initialize(): Promise<void> {
     tracker = getSessionTracker({
       autoUpdate: true,
       updateInterval: 30000, // 30 seconds
-      indicatorSize: 48,
+      indicatorSize: 200,
       showSessionIndicator: true,
       showWeeklyIndicator: true,
       injectStyles: true,

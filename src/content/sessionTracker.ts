@@ -81,7 +81,7 @@ export interface SessionTrackerConfig {
 const DEFAULT_CONFIG: SessionTrackerConfig = {
   autoUpdate: true,
   updateInterval: 30000,
-  indicatorSize: 48,
+  indicatorSize: 200,
   showSessionIndicator: true,
   showWeeklyIndicator: true,
   injectStyles: true,

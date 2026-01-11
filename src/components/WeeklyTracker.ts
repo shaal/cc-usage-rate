@@ -67,7 +67,7 @@ export interface WeeklyTrackerResult {
  * Default options for the weekly tracker
  */
 const DEFAULT_OPTIONS: Required<WeeklyTrackerOptions> = {
-  indicatorSize: 48,
+  indicatorSize: 200,
   showTooltip: true,
   className: '',
   position: 'right',
