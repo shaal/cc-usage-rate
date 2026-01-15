@@ -102,6 +102,95 @@ const DAY_INDEX_MAP: Record<DayOfWeek, number> = {
 const MINUTES_PER_WEEK = 7 * 24 * 60;
 
 /**
+ * Calculates weekly time details from remaining minutes
+ * Used when the UI shows "Resets in X hr Y min" format instead of "Resets Thu 8:00 AM"
+ *
+ * @param remainingMinutes - Minutes remaining until the next reset
+ * @param referenceDate - The reference date (defaults to now)
+ * @returns WeeklyTimeResult with elapsed time details
+ */
+export function calculateWeeklyTimeFromRemaining(
+  remainingMinutes: number,
+  referenceDate: Date = new Date()
+): WeeklyTimeResult {
+  // Validate remaining minutes
+  if (remainingMinutes < 0) {
+    remainingMinutes = 0;
+  }
+  if (remainingMinutes > MINUTES_PER_WEEK) {
+    remainingMinutes = MINUTES_PER_WEEK;
+  }
+
+  // Calculate elapsed time
+  const elapsedMinutes = MINUTES_PER_WEEK - remainingMinutes;
+  const elapsedPercentage = (elapsedMinutes / MINUTES_PER_WEEK) * 100;
+
+  // Calculate reset dates
+  const nextReset = new Date(referenceDate.getTime() + remainingMinutes * 60 * 1000);
+  const lastReset = new Date(nextReset.getTime() - MINUTES_PER_WEEK * 60 * 1000);
+
+  return {
+    elapsedPercentage,
+    elapsedMinutes,
+    totalWeekMinutes: MINUTES_PER_WEEK,
+    lastReset,
+    nextReset,
+    remainingMinutes,
+    remainingFormatted: formatRemainingTime(remainingMinutes),
+  };
+}
+
+/**
+ * Calculates usage efficiency from remaining time
+ * Used when the UI shows "Resets in X hr Y min" format instead of "Resets Thu 8:00 AM"
+ *
+ * @param actualUsagePercentage - The actual usage percentage (0-100)
+ * @param remainingMinutes - Minutes remaining until the next reset
+ * @param referenceDate - The reference date (defaults to now)
+ * @returns UsageEfficiencyResult with efficiency details
+ */
+export function calculateUsageEfficiencyFromRemaining(
+  actualUsagePercentage: number,
+  remainingMinutes: number,
+  referenceDate: Date = new Date()
+): UsageEfficiencyResult {
+  const timeDetails = calculateWeeklyTimeFromRemaining(remainingMinutes, referenceDate);
+  const expectedUsagePercentage = timeDetails.elapsedPercentage;
+
+  // Calculate the delta (positive = over-consuming)
+  const efficiencyDelta = actualUsagePercentage - expectedUsagePercentage;
+
+  // Determine status
+  let status: 'under' | 'on-track' | 'over';
+  if (efficiencyDelta <= -10) {
+    status = 'under';
+  } else if (efficiencyDelta >= 10) {
+    status = 'over';
+  } else {
+    status = 'on-track';
+  }
+
+  // Calculate hours to zero delta (only meaningful when over-utilizing)
+  const hoursToZeroDelta = calculateHoursToZeroDelta(
+    actualUsagePercentage,
+    timeDetails.elapsedMinutes
+  );
+  const hoursToZeroDeltaFormatted = hoursToZeroDelta !== null
+    ? formatHoursToZeroDelta(hoursToZeroDelta)
+    : null;
+
+  return {
+    actualUsagePercentage,
+    expectedUsagePercentage,
+    efficiencyDelta,
+    status,
+    timeDetails,
+    hoursToZeroDelta,
+    hoursToZeroDeltaFormatted,
+  };
+}
+
+/**
  * Normalizes a day name to its full form
  *
  * @param day - The day name (short or full)

@@ -32,6 +32,8 @@ import {
   parseResetTimeString,
   calculateWeeklyTime,
   calculateUsageEfficiency,
+  calculateWeeklyTimeFromRemaining,
+  calculateUsageEfficiencyFromRemaining,
   type WeeklyResetConfig,
   type WeeklyTimeResult,
   type UsageEfficiencyResult,
@@ -87,6 +89,8 @@ export interface ParsedWeeklyReset {
   resetHour: number | null;
   /** Minute of reset */
   resetMinute: number | null;
+  /** Remaining minutes until reset (used when relative time format is shown) */
+  remainingMinutes: number | null;
   /** Original string that was parsed */
   originalString: string;
   /** Whether the parsing was successful */
@@ -341,7 +345,9 @@ export function parseSessionTimer(
 }
 
 /**
- * Parse a weekly reset time string (absolute time like "Thu 7:59 AM" or "Resets Thu 8:00 AM")
+ * Parse a weekly reset time string
+ * Supports both absolute time formats ("Thu 7:59 AM", "Resets Thu 8:00 AM")
+ * and relative time formats ("Resets in 7 hr 31 min", "in 2 hr 45 min")
  *
  * @param resetStr - The reset time string to parse
  * @param errors - Optional array to collect errors
@@ -360,10 +366,33 @@ export function parseWeeklyResetTime(
   try {
     let trimmed = resetStr.trim();
 
-    // Strip "Resets " prefix if present (Claude.ai format)
+    // Check if this is a relative time format (e.g., "Resets in 7 hr 31 min")
+    // This happens when Claude.ai shows the weekly reset as countdown
+    const relativePattern = /^resets?\s+in\s+/i;
+    if (relativePattern.test(trimmed)) {
+      // Strip "Resets in " prefix and parse as relative time
+      const timeStr = trimmed.replace(relativePattern, '');
+      const relativeResult = parseRelativeTime(timeStr);
+
+      if (relativeResult) {
+        handler.debug(`Parsed weekly reset as relative time: ${relativeResult.totalMinutes} minutes remaining`);
+        return {
+          timeResult: null,
+          resetConfig: null,
+          resetDay: null,
+          resetHour: null,
+          resetMinute: null,
+          remainingMinutes: relativeResult.totalMinutes,
+          originalString: resetStr,
+          isValid: true,
+        };
+      }
+    }
+
+    // Strip "Resets " prefix if present (Claude.ai format for absolute time)
     trimmed = trimmed.replace(/^resets?\s+/i, '');
 
-    // Try parsing as absolute time first
+    // Try parsing as absolute time (day of week format)
     const absoluteResult = parseAbsoluteTime(trimmed);
 
     // Also try the reset config parser for more structured data
@@ -385,6 +414,7 @@ export function parseWeeklyResetTime(
         resetDay: null,
         resetHour: null,
         resetMinute: null,
+        remainingMinutes: null,
         originalString: resetStr,
         isValid: false,
       };
@@ -414,6 +444,7 @@ export function parseWeeklyResetTime(
       resetDay: dayOfWeek,
       resetHour: absoluteResult?.hours ?? resetConfig?.resetHour ?? null,
       resetMinute: absoluteResult?.minutes ?? resetConfig?.resetMinute ?? null,
+      remainingMinutes: null,
       originalString: resetStr,
       isValid: true,
     };
@@ -435,6 +466,7 @@ export function parseWeeklyResetTime(
       resetDay: null,
       resetHour: null,
       resetMinute: null,
+      remainingMinutes: null,
       originalString: resetStr,
       isValid: false,
     };
@@ -663,16 +695,34 @@ export function analyzeUsageData(
   }
 
   // Analyze weekly data
-  if (extracted.weeklyReset?.isValid && extracted.weeklyReset.resetConfig) {
+  if (extracted.weeklyReset?.isValid) {
     try {
-      weeklyTime = calculateWeeklyTime(extracted.weeklyReset.resetConfig, referenceDate);
+      // Check if we have a reset config (absolute time format like "Resets Thu 8:00 AM")
+      if (extracted.weeklyReset.resetConfig) {
+        weeklyTime = calculateWeeklyTime(extracted.weeklyReset.resetConfig, referenceDate);
 
-      if (extracted.weeklyPercentage?.isValid) {
-        weeklyEfficiency = calculateUsageEfficiency(
-          extracted.weeklyPercentage.value,
-          extracted.weeklyReset.resetConfig,
+        if (extracted.weeklyPercentage?.isValid) {
+          weeklyEfficiency = calculateUsageEfficiency(
+            extracted.weeklyPercentage.value,
+            extracted.weeklyReset.resetConfig,
+            referenceDate
+          );
+        }
+      }
+      // Otherwise check if we have remaining minutes (relative time format like "Resets in 7 hr 31 min")
+      else if (extracted.weeklyReset.remainingMinutes !== null) {
+        weeklyTime = calculateWeeklyTimeFromRemaining(
+          extracted.weeklyReset.remainingMinutes,
           referenceDate
         );
+
+        if (extracted.weeklyPercentage?.isValid) {
+          weeklyEfficiency = calculateUsageEfficiencyFromRemaining(
+            extracted.weeklyPercentage.value,
+            extracted.weeklyReset.remainingMinutes,
+            referenceDate
+          );
+        }
       }
     } catch (e) {
       const error = handler.createError(
@@ -680,7 +730,7 @@ export function analyzeUsageData(
         `Failed to calculate weekly time: ${e instanceof Error ? e.message : String(e)}`,
         'calculation',
         'warning',
-        { resetConfig: extracted.weeklyReset?.resetConfig },
+        { resetConfig: extracted.weeklyReset?.resetConfig, remainingMinutes: extracted.weeklyReset?.remainingMinutes },
         e instanceof Error ? e : new Error(String(e))
       );
       handler.logError(error);
