@@ -250,6 +250,17 @@ test.describe('Built extension on usage settings', () => {
     await expect(page.locator(sessionIndicator)).toHaveAttribute('data-percentage', '-20.5');
   });
 
+  test('ignores an earlier visible dialog that only mentions this week', async () => {
+    await page.goto('https://claude.ai/new#settings/usage');
+    await mountPanel();
+    await page.locator('#app').evaluate(app => {
+      app.insertAdjacentHTML('afterbegin', '<div role="dialog" id="decoy"><p>Your plan renews this week.</p><p>This week</p></div>');
+    });
+    await expect(page.locator('#session-row [data-indicator-type="session"] .claude-usage-pace')).toBeVisible();
+    await expect(page.locator('#weekly-row [data-indicator-type="weekly"] .claude-usage-pace')).toBeVisible();
+    await expect(page.locator('#decoy [data-indicator-type]')).toHaveCount(0);
+  });
+
   test('never substitutes a model-specific limit for a missing main weekly row', async () => {
     await page.goto('https://claude.ai/new#settings/usage');
     await mountPanel();
