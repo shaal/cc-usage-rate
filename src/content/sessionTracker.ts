@@ -163,24 +163,31 @@ const TRACKER_STYLES = `
  * where React put them:
  *   line 1: label and reset time ............................ 59% used
  *   line 2: [usage bar with pace marker] [gauge  +19 over pace]
- * The middle column becomes display: contents so its bar and "% used" text
- * can be ordered as row items. !important wins over Claude's utility classes.
+ * A grid keeps both lines intact whatever spacing Claude uses. The middle
+ * column becomes display: contents so its bar and "% used" text become grid
+ * items. !important wins over Claude's utility classes.
  */
 [data-claude-pace-layout] {
-  flex-wrap: wrap !important;
-  align-items: center;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "label used" "bar gauge";
+  column-gap: 28px !important;
   row-gap: 4px !important;
+  align-items: center !important;
 }
 [data-claude-pace-layout] > [data-claude-pace-middle] { display: contents !important; }
-[data-claude-pace-layout] [data-claude-pace-used] {
-  order: 1 !important;
-  margin-left: auto !important;
-  align-self: flex-start !important;
+[data-claude-pace-layout] > [data-claude-pace-label] {
+  grid-area: label;
+  width: auto !important;
+  min-width: 0;
 }
-/* The basis always forces the bar onto line 2, beside the gauge. */
+[data-claude-pace-layout] [data-claude-pace-used] {
+  grid-area: used;
+  align-self: start !important;
+  justify-self: end;
+}
 [data-claude-pace-layout] [data-claude-pace-bar] {
-  order: 2 !important;
-  flex: 1 1 calc(100% - 260px) !important;
+  grid-area: bar;
   min-width: 0 !important;
   padding-top: 12px; /* room for the "pace 40%" label */
 }
@@ -189,8 +196,8 @@ const TRACKER_STYLES = `
   height: 8px;
 }
 [data-claude-pace-layout] > .claude-usage-indicator-container[data-placement="beside-bar"] {
-  order: 3 !important;
-  flex: 0 0 236px !important;
+  grid-area: gauge;
+  width: 236px;
   margin: 0 !important;
   padding: 0 !important;
   justify-content: flex-start;
@@ -511,6 +518,9 @@ export class SessionTracker {
     if (middle && barColumn) {
       container.setAttribute('data-claude-pace-layout', '');
       middle.setAttribute('data-claude-pace-middle', '');
+      Array.from(container.children)
+        .find(child => child !== middle && !child.classList.contains('claude-usage-indicator-container'))
+        ?.setAttribute('data-claude-pace-label', '');
       barColumn.setAttribute('data-claude-pace-bar', '');
       const used = Array.from(middle.children)
         .find(child => child !== barColumn && /%\s*used/i.test(child.textContent || ''));
@@ -600,7 +610,7 @@ export class SessionTracker {
     trackerWrappers.forEach(el => el.remove());
     indicatorContainers.forEach(el => el.remove());
     // Restore Claude's own row layout.
-    for (const attribute of ['data-claude-pace-layout', 'data-claude-pace-middle', 'data-claude-pace-bar', 'data-claude-pace-used']) {
+    for (const attribute of ['data-claude-pace-layout', 'data-claude-pace-middle', 'data-claude-pace-label', 'data-claude-pace-bar', 'data-claude-pace-used']) {
       document.querySelectorAll(`[${attribute}]`).forEach(el => el.removeAttribute(attribute));
     }
     orphanedContainers.forEach(el => {

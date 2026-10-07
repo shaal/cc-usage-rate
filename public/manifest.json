@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Claude Usage Tracker",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Visual feedback on Claude.ai usage efficiency with color-coded indicators showing whether you're pacing your usage optimally.",
   "permissions": [
     "activeTab",

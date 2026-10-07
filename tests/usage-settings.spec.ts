@@ -11,7 +11,8 @@ import { projectUsage, formatDuration } from '../src/components/PaceIndicator';
 // 2026-10-07. All usage values are synthetic; no account data is captured here.
 // Rows follow Claude's markup and layout: a wrapping flex row of
 // [label column] [middle: bar column with role="meter", "% used"].
-const rowStyle = 'display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;column-gap:24px;row-gap:8px;width:640px';
+// 32px matches the spacing on the live page, where a flex layout wrapped the gauge.
+const rowStyle = 'display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;column-gap:32px;row-gap:8px;width:640px';
 const labelStyle = 'display:flex;flex-direction:column;width:208px;flex-shrink:0';
 const middleStyle = 'display:flex;flex:1 1 0%;align-items:center;gap:12px;min-width:192px';
 const meter = (label: string, value: number) => `
