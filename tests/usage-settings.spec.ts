@@ -171,12 +171,14 @@ test.describe('Built extension on usage settings', () => {
     // 59% used with one hour left of five: expected 80%, so 21 points under pace.
     await expect(page.locator(sessionIndicator)).toHaveAttribute('data-color', 'green');
     await expect(page.locator(`${sessionIndicator} .claude-usage-pace__headline`)).toHaveText('\u221221 under pace');
-    await expect(page.locator(`${sessionIndicator} .claude-usage-pace__detail`)).toHaveText(/^Pace 80% · ends session near 7\d%$/);
-    const overlay = page.locator('#session-row [role="progressbar"] > .claude-usage-pace-overlay');
+    await expect(page.locator(`${sessionIndicator} .claude-usage-pace__detail`)).toHaveText(/^Ends session near 7\d%$/);
+    // The overlay sits beside the bar so a clipping bar cannot cut off the label.
+    const overlay = page.locator('#session-row [role="progressbar"] + .claude-usage-pace-overlay');
     await expect(overlay).toHaveCount(1);
     await expect(overlay).toHaveAttribute('data-direction', 'under');
     await expect(overlay.locator('.claude-usage-pace-overlay__marker')).toHaveAttribute('style', /left: 80%/);
-    await expect(page.locator('#weekly-row [role="progressbar"] > .claude-usage-pace-overlay')).toHaveCount(1);
+    await expect(overlay.locator('.claude-usage-pace-overlay__label')).toHaveText('pace 80%');
+    await expect(page.locator('#weekly-row [role="progressbar"] + .claude-usage-pace-overlay')).toHaveCount(1);
     await expect(page.locator('#fable-row .claude-usage-pace-overlay')).toHaveCount(0);
 
     // Updates move the marker band in place without adding a second overlay.

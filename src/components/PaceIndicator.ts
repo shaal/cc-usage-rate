@@ -6,8 +6,9 @@
  * - The delta in words ("+19 over pace")
  * - The expected usage and a projection ("Pace 40% · limit in ~1h 25m")
  *
- * A companion marker is drawn on Claude's own progress bar at the expected
- * usage, with a band showing how far actual usage is ahead or behind.
+ * A companion marker is drawn over Claude's own progress bar at the expected
+ * usage, labeled "pace 40%", with a band showing how far actual usage is
+ * ahead or behind.
  */
 
 import { attachTooltip, type TooltipContent } from '../utils/tooltipManager';
@@ -28,6 +29,8 @@ export interface PaceData {
   period: 'session' | 'week';
   /** Rich tooltip content */
   tooltip?: TooltipContent;
+  /** True when the bar marker shows the pace, so the detail line omits it */
+  paceOnBar?: boolean;
 }
 
 export type PaceProjection =
@@ -86,14 +89,20 @@ export function formatDuration(minutes: number): string {
   return hours ? `${days}d ${hours}h` : `${days}d`;
 }
 
-/** Builds the secondary line, such as "Pace 40% · limit in ~1h 25m". */
+/**
+ * Builds the secondary line, such as "Limit in ~1h 25m at this rate".
+ * Without a bar marker, the line also carries the pace: "Pace 40% · ...".
+ */
 export function formatPaceDetail(data: PaceData): string {
-  const pace = `Pace ${Math.round(data.expected)}%`;
   const projection = projectUsage(data.actual, data.elapsedMinutes, data.remainingMinutes);
-  if (!projection) return pace;
-  if (projection.kind === 'reached') return `${pace} · limit reached`;
-  if (projection.kind === 'limit') return `${pace} · limit in ~${formatDuration(projection.minutes)}`;
-  return `${pace} · ends ${data.period} near ${projection.percentage}%`;
+  let text = '';
+  if (projection?.kind === 'reached') text = 'Limit reached';
+  else if (projection?.kind === 'limit') text = `Limit in ~${formatDuration(projection.minutes)} at this rate`;
+  else if (projection?.kind === 'end') text = `Ends ${data.period} near ${projection.percentage}%`;
+
+  if (data.paceOnBar) return text;
+  const pace = `Pace ${Math.round(data.expected)}%`;
+  return text ? `${pace} · ${text.charAt(0).toLowerCase()}${text.slice(1)}` : pace;
 }
 
 function formatDelta(delta: number): string {
@@ -208,7 +217,8 @@ export function updatePaceIndicator(container: HTMLDivElement, data: PaceData): 
   container.setAttribute('data-percentage', String(data.delta));
   container.setAttribute(
     'aria-label',
-    `${Math.round(data.actual)}% used, ${valueText} points ${statusText}. ${detailText}.`
+    `${Math.round(data.actual)}% used, expected ${Math.round(data.expected)}% by now, ` +
+      `${valueText} points ${statusText}.${detailText ? ` ${detailText}.` : ''}`
   );
 
   const needle = container.querySelector<SVGLineElement>('.claude-usage-pace__needle');
@@ -240,26 +250,62 @@ export function findProgressBar(row: HTMLElement): HTMLElement | null {
   return null;
 }
 
+const observedOverlays = new WeakSet<HTMLElement>();
+
+/** Places the overlay exactly over the bar, in the coordinates of the bar's parent. */
+function positionOverlay(bar: HTMLElement, overlay: HTMLElement): void {
+  overlay.style.left = `${bar.offsetLeft}px`;
+  overlay.style.top = `${bar.offsetTop}px`;
+  overlay.style.width = `${bar.offsetWidth}px`;
+  overlay.style.height = `${bar.offsetHeight}px`;
+  const clip = overlay.querySelector<HTMLElement>('.claude-usage-pace-overlay__clip');
+  if (clip) clip.style.borderRadius = window.getComputedStyle(bar).borderRadius;
+}
+
 /**
- * Draws or updates the expected-usage marker on Claude's progress bar.
+ * Draws or updates the expected-usage marker over Claude's progress bar.
+ *
+ * The overlay is a sibling of the bar, not a child, so a bar that clips its
+ * overflow does not cut off the marker or its "pace" label.
  */
 export function syncPaceMarker(bar: HTMLElement, data: PaceData): void {
-  let overlay = bar.querySelector<HTMLDivElement>(':scope > .claude-usage-pace-overlay');
+  const host = bar.parentElement;
+  if (!host) return;
+
+  let overlay = host.querySelector<HTMLDivElement>(':scope > .claude-usage-pace-overlay');
   if (!overlay) {
-    if (window.getComputedStyle(bar).position === 'static') {
-      bar.style.position = 'relative';
+    if (window.getComputedStyle(host).position === 'static') {
+      host.style.position = 'relative';
     }
     overlay = document.createElement('div');
     overlay.className = 'claude-usage-pace-overlay';
     overlay.setAttribute('data-claude-tracker', 'true');
     overlay.setAttribute('aria-hidden', 'true');
+    const clip = document.createElement('div');
+    clip.className = 'claude-usage-pace-overlay__clip';
     const band = document.createElement('div');
     band.className = 'claude-usage-pace-overlay__band';
+    clip.appendChild(band);
     const marker = document.createElement('div');
     marker.className = 'claude-usage-pace-overlay__marker';
-    overlay.append(band, marker);
-    bar.appendChild(overlay);
+    const label = document.createElement('span');
+    label.className = 'claude-usage-pace-overlay__label';
+    marker.appendChild(label);
+    overlay.append(clip, marker);
+    host.appendChild(overlay);
   }
+
+  // Follow the bar when the dialog resizes; stop once the overlay is gone.
+  if (!observedOverlays.has(overlay)) {
+    const target = overlay;
+    const observer = new ResizeObserver(() => {
+      if (target.isConnected) positionOverlay(bar, target);
+      else observer.disconnect();
+    });
+    observer.observe(bar);
+    observedOverlays.add(overlay);
+  }
+  positionOverlay(bar, overlay);
 
   const clamp = (value: number) => Math.max(0, Math.min(100, value));
   const actual = clamp(data.actual);
@@ -275,6 +321,12 @@ export function syncPaceMarker(bar: HTMLElement, data: PaceData): void {
 
   const marker = overlay.querySelector<HTMLDivElement>('.claude-usage-pace-overlay__marker')!;
   marker.style.left = `${expected}%`;
+  // Keep the label inside the bar's width near either end.
+  marker.setAttribute('data-align', expected < 8 ? 'start' : expected > 92 ? 'end' : 'center');
+
+  const label = marker.querySelector<HTMLSpanElement>('.claude-usage-pace-overlay__label')!;
+  const labelText = `pace ${Math.round(expected)}%`;
+  if (label.textContent !== labelText) label.textContent = labelText;
 }
 
 /** Styles for the pace indicator and bar marker. */
@@ -317,14 +369,20 @@ export const PACE_STYLES = `
 .claude-usage-pace__status { font-weight: 500; }
 .claude-usage-pace__detail { font-size: 11.5px; opacity: 0.65; font-variant-numeric: tabular-nums; }
 
+.claude-usage-pace__detail:empty { display: none; }
+
 .claude-usage-pace-overlay {
   --pace-green: #1f9d55;
   --pace-yellow: #c98a04;
   --pace-red: #dc3545;
   position: absolute;
-  inset: 0;
   pointer-events: none;
-  border-radius: inherit;
+  z-index: 1;
+}
+.claude-usage-pace-overlay__clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
 .claude-usage-pace-overlay__band {
   position: absolute;
@@ -336,21 +394,37 @@ export const PACE_STYLES = `
   background: repeating-linear-gradient(135deg, var(--pace-band) 0 3px, color-mix(in srgb, var(--pace-band) 55%, transparent) 3px 6px);
 }
 .claude-usage-pace-overlay[data-direction="under"] .claude-usage-pace-overlay__band {
-  background: color-mix(in srgb, var(--pace-band) 30%, transparent);
+  background: color-mix(in srgb, var(--pace-band) 28%, transparent);
+  outline: 1px dashed var(--pace-band);
+  outline-offset: -1px;
 }
 .claude-usage-pace-overlay[data-color="green"] { --pace-band: var(--pace-green); }
 .claude-usage-pace-overlay[data-color="yellow"] { --pace-band: var(--pace-yellow); }
 .claude-usage-pace-overlay[data-color="red"] { --pace-band: var(--pace-red); }
 .claude-usage-pace-overlay__marker {
   position: absolute;
-  top: -3px;
-  bottom: -3px;
+  top: -5px;
+  bottom: -5px;
   width: 2px;
   margin-left: -1px;
   border-radius: 1px;
   background: currentColor;
   transition: left 0.4s ease;
 }
+.claude-usage-pace-overlay__label {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+.claude-usage-pace-overlay__marker[data-align="start"] .claude-usage-pace-overlay__label { left: 0; transform: none; }
+.claude-usage-pace-overlay__marker[data-align="end"] .claude-usage-pace-overlay__label { left: auto; right: 0; transform: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .claude-usage-pace__needle,

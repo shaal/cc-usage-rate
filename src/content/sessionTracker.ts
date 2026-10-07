@@ -335,7 +335,7 @@ export class SessionTracker {
    */
   private createIndicator(type: 'session' | 'weekly'): HTMLDivElement | null {
     const handler = getErrorHandler();
-    const data = type === 'session' ? this.getSessionPaceData() : this.getWeeklyPaceData();
+    const data = this.getPaceData(type);
     if (!data) {
       return null;
     }
@@ -367,6 +367,18 @@ export class SessionTracker {
     if (bar) {
       syncPaceMarker(bar, data);
     }
+  }
+
+  /**
+   * Pace data for a row, noting whether its bar can show the pace marker
+   */
+  private getPaceData(type: 'session' | 'weekly'): PaceData | null {
+    const data = type === 'session' ? this.getSessionPaceData() : this.getWeeklyPaceData();
+    const container = type === 'session'
+      ? this.state.detection?.sessionContainer
+      : this.state.detection?.weeklyContainer;
+    if (data && container) data.paceOnBar = !!findProgressBar(container);
+    return data;
   }
 
   /**
@@ -403,7 +415,7 @@ export class SessionTracker {
         if (insertionPoint) {
           insertionPoint.appendChild(wrapper);
           this.log('Inserted session indicator');
-          this.syncBarMarker(detection.sessionContainer, this.getSessionPaceData());
+          this.syncBarMarker(detection.sessionContainer, this.getPaceData('session'));
         }
       }
     }
@@ -419,7 +431,7 @@ export class SessionTracker {
         if (insertionPoint) {
           insertionPoint.appendChild(wrapper);
           this.log('Inserted weekly indicator');
-          this.syncBarMarker(detection.weeklyContainer, this.getWeeklyPaceData());
+          this.syncBarMarker(detection.weeklyContainer, this.getPaceData('weekly'));
         }
       }
     }
@@ -542,7 +554,7 @@ export class SessionTracker {
           this.log('Session indicator removed from DOM, clearing reference');
           this.state.sessionIndicator = null;
         } else {
-          const data = this.getSessionPaceData()!;
+          const data = this.getPaceData('session')!;
           updatePaceIndicator(sessionIndicator, data);
           this.syncBarMarker(this.state.detection?.sessionContainer ?? null, data);
         }
@@ -569,7 +581,7 @@ export class SessionTracker {
           this.log('Weekly indicator removed from DOM, clearing reference');
           this.state.weeklyIndicator = null;
         } else {
-          const data = this.getWeeklyPaceData()!;
+          const data = this.getPaceData('weekly')!;
           updatePaceIndicator(weeklyIndicator, data);
           this.syncBarMarker(this.state.detection?.weeklyContainer ?? null, data);
         }
