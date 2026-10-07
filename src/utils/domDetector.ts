@@ -5,9 +5,9 @@
  * containers, timer elements, and percentage displays on the Claude.ai
  * usage settings page.
  *
- * Updated to match Claude.ai's actual page structure (January 2026):
- * - Session: "Current session" with "Resets in X hr Y min" and "XX% used"
- * - Weekly: "All models" with "Resets Thu 8:00 AM" and "XX% used"
+ * Supports Claude's standalone usage page and the settings dialog:
+ * - Session: "Current session" with a countdown or "Resets at 2:00 PM"
+ * - Weekly: "All models" or "This week" with a weekday reset and "XX% used"
  *
  * Includes comprehensive error handling for:
  * - Page not fully loaded
@@ -28,6 +28,8 @@ import {
   getDOMCache,
   type DOMQueryCache,
 } from './performanceUtils';
+
+export { isUsagePage } from './usagePage';
 
 /**
  * Result of DOM element detection
@@ -97,6 +99,7 @@ const DEFAULT_SELECTOR_CONFIG: SelectorConfig = {
   ],
   weeklyTextPatterns: [
     /all\s*models/i,
+    /^this\s+week$/i,
     /resets?\s+(mon|tue|wed|thu|fri|sat|sun)/i,
   ],
   percentagePatterns: [
@@ -105,6 +108,7 @@ const DEFAULT_SELECTOR_CONFIG: SelectorConfig = {
   ],
   timerPatterns: [
     /resets?\s+in\s+\d+\s*(hr|hour|min|minute)/i,
+    /resets?\s+at\s+\d/i,
     /resets?\s+(mon|tue|wed|thu|fri|sat|sun)/i,
     /\d+\s*(hr|hour|min|minute)/i,
   ],
@@ -127,10 +131,6 @@ function warnLog(message: string, ...args: unknown[]): void {
 }
 
 /**
- * Logs an error message with the extension prefix
- */
-
-/**
  * Get the shared DOM cache instance for detector operations
  * Uses a shorter TTL for detection since the page may update frequently
  */
@@ -138,86 +138,48 @@ function getDetectorCache(): DOMQueryCache {
   return getDOMCache({ maxAge: 500, maxEntries: 50 });
 }
 
-/**
- * Find the row container element that contains both timer and percentage
- * Claude.ai uses flex-row containers with class pattern: "w-full flex flex-row"
- *
- * Performance optimization: Uses cached DOM queries to avoid redundant querySelectorAll calls
- */
+/** Find the visible usage dialog, or use the legacy standalone page. */
+function getUsageRoot(): HTMLElement {
+  const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"], dialog[open], [aria-modal="true"]');
+  for (const dialog of dialogs) {
+    if (dialog.getClientRects().length > 0 && /current\s+session|this\s+week|all\s+models/i.test(dialog.textContent || '')) {
+      return dialog;
+    }
+  }
+  return document.body;
+}
+
+/** Find the nearest row around its exact label, without crossing into other limits. */
 function findUsageRowByText(labelPattern: RegExp, errors: TrackerError[]): HTMLElement | null {
-  const handler = getErrorHandler();
-  const cache = getDetectorCache();
+  if (typeof document === 'undefined' || !document.body) return null;
 
-  // Check if document is available
-  if (typeof document === 'undefined' || !document.body) {
-    const error = handler.createError(
-      ErrorCodes.DOCUMENT_NOT_AVAILABLE,
-      'Document or body not available for DOM queries',
-      'page-load',
-      'error'
-    );
-    errors.push(error);
-    handler.logError(error);
-    return null;
-  }
+  const root = getUsageRoot();
+  const elements = getDetectorCache().querySelectorAll<HTMLElement>('div, p, span, h2, h3, h4, label', root);
+  const limitLabelPattern = /^(?:current\s+session|all\s+models|this\s+week|.+\s+this\s+week|sonnet\s+only)$/i;
+  const labels = elements.filter(element => {
+    const text = element.textContent?.trim() || '';
+    return limitLabelPattern.test(text) &&
+      element.getClientRects().length > 0 &&
+      !element.closest('[data-claude-tracker="true"], .claude-usage-indicator-container') &&
+      !Array.from(element.children).some(child => limitLabelPattern.test(child.textContent?.trim() || ''));
+  });
 
-  try {
-    // Use cached query for all divs - this is a major performance win
-    // as we may call this function multiple times in a single detection cycle
-    const allDivs = cache.querySelectorAll<HTMLElement>('div');
-
-    if (allDivs.length === 0) {
-      const error = handler.createError(
-        ErrorCodes.ELEMENT_NOT_FOUND,
-        'No div elements found on page - page may not be fully loaded',
-        'page-structure',
-        'warning',
-        { pattern: labelPattern.toString() }
-      );
-      errors.push(error);
-      handler.logError(error);
-      return null;
-    }
-
-    for (const div of allDivs) {
-      const text = div.textContent || '';
-      const classList = div.className || '';
-
-      // Check if this div matches our label pattern AND contains percentage data
-      if (labelPattern.test(text) && /\d+%/.test(text)) {
-        // Prefer flex-row containers (Claude.ai's actual structure)
-        if (classList.includes('flex') && classList.includes('flex-row')) {
-          debugLog(`Found usage row via flex-row pattern: "${text.slice(0, 60)}..."`);
-          return div;
-        }
+  for (const label of labels.filter(element => labelPattern.test(element.textContent?.trim() || ''))) {
+    let row = label.parentElement;
+    let percentageRow: HTMLElement | null = null;
+    while (row && root.contains(row)) {
+      // A settings shell or card containing several limits is not a usage row.
+      if (labels.some(other => other !== label && row!.contains(other))) break;
+      if (findPercentageElement(row, errors)) {
+        percentageRow ??= row;
+        if (findTimerElement(row, errors)) return row;
       }
+      if (row === root) break;
+      row = row.parentElement;
     }
-
-    // Fallback: find any container with the pattern (reuse cached results)
-    for (const div of allDivs) {
-      const text = div.textContent || '';
-      if (labelPattern.test(text) && /\d+%/.test(text) && text.length < 200) {
-        debugLog(`Found usage row via fallback: "${text.slice(0, 60)}..."`);
-        return div;
-      }
-    }
-
-    // Element not found - this may indicate page structure change
-    debugLog(`No usage row found for pattern: ${labelPattern.toString()}`);
-    return null;
-  } catch (e) {
-    const error = handler.createError(
-      ErrorCodes.ELEMENT_NOT_FOUND,
-      `Error searching for usage row: ${e instanceof Error ? e.message : String(e)}`,
-      'dom-element',
-      'error',
-      { pattern: labelPattern.toString() },
-      e instanceof Error ? e : new Error(String(e))
-    );
-    errors.push(error);
-    handler.logError(error);
-    return null;
+    if (percentageRow) return percentageRow;
   }
+  return null;
 }
 
 /**
@@ -241,13 +203,15 @@ function findPercentageElement(container: HTMLElement, errors: TrackerError[]): 
 
   try {
     // Look for P elements with percentage text (Claude.ai uses P tags)
-    const paragraphs = container.querySelectorAll<HTMLElement>('p, span, div');
+    const paragraphs = Array.from(container.querySelectorAll<HTMLElement>('p, span, div')).filter(
+      element => !element.closest('[data-claude-tracker="true"], .claude-usage-indicator-container')
+    );
 
     for (const el of paragraphs) {
       const text = el.textContent?.trim() || '';
 
       // Match "XX% used" pattern (Claude.ai's format)
-      if (/^\d+%\s*used$/i.test(text)) {
+      if (/^\d+(?:\.\d+)?\s*%\s*used$/i.test(text)) {
         debugLog(`Found percentage element: "${text}"`);
         return el;
       }
@@ -256,7 +220,7 @@ function findPercentageElement(container: HTMLElement, errors: TrackerError[]): 
     // Fallback: look for any element with just percentage
     for (const el of paragraphs) {
       const text = el.textContent?.trim() || '';
-      if (/^\d+(\.\d+)?%$/.test(text)) {
+      if (/^\d+(\.\d+)?\s*%$/.test(text)) {
         debugLog(`Found percentage element (fallback): "${text}"`);
         return el;
       }
@@ -300,20 +264,15 @@ function findTimerElement(container: HTMLElement, errors: TrackerError[]): HTMLE
   }
 
   try {
-    const paragraphs = container.querySelectorAll<HTMLElement>('p, span, div');
+    const paragraphs = Array.from(container.querySelectorAll<HTMLElement>('p, span, div')).filter(
+      element => !element.closest('[data-claude-tracker="true"], .claude-usage-indicator-container')
+    );
 
+    const timerPattern = /^resets?\s+(?:in\s+\d+\s*(?:hr|hours?|min|minutes?)(?:\s+\d+\s*(?:hr|hours?|min|minutes?))?|at\s+\d{1,2}:\d{2}(?:\s*[ap]m)?|(?:sun(?:day)?|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?)\s+\d{1,2}:\d{2}(?:\s*[ap]m)?)$/i;
     for (const el of paragraphs) {
       const text = el.textContent?.trim() || '';
-
-      // Match "Resets in X hr Y min" pattern (session timer)
-      if (/^resets?\s+in\s+\d+/i.test(text)) {
-        debugLog(`Found timer element (relative): "${text}"`);
-        return el;
-      }
-
-      // Match "Resets Thu 8:00 AM" pattern (weekly reset)
-      if (/^resets?\s+(mon|tue|wed|thu|fri|sat|sun)/i.test(text)) {
-        debugLog(`Found timer element (absolute): "${text}"`);
+      if (timerPattern.test(text)) {
+        debugLog(`Found timer element: "${text}"`);
         return el;
       }
     }
@@ -376,45 +335,8 @@ function detectUsageSections(errors: TrackerError[], silent: boolean = false): {
   }
 
   try {
-    // Strategy 1: Find session row by "Current session" + "Resets in" pattern
-    sessionContainer = findUsageRowByText(/current\s*session/i, errors);
-
-    // Strategy 2: Find weekly row by "All models" + "Resets [day]" pattern
-    weeklyContainer = findUsageRowByText(/all\s*models/i, errors);
-
-    // Fallback: Try finding by "Resets in" (session) vs "Resets [day]" (weekly)
-    // Use cached query to avoid redundant DOM traversal
-    const cache = getDetectorCache();
-    const allDivs = cache.querySelectorAll<HTMLElement>('div');
-
-    if (!sessionContainer) {
-      // Look for container with relative time (session uses "Resets in X hr Y min")
-      for (const div of allDivs) {
-        const text = div.textContent || '';
-        if (/resets?\s+in\s+\d+\s*(hr|min)/i.test(text) && /\d+%/.test(text)) {
-          if (div.className.includes('flex-row') || text.length < 200) {
-            sessionContainer = div;
-            debugLog('Found session container via "Resets in" pattern');
-            break;
-          }
-        }
-      }
-    }
-
-    if (!weeklyContainer) {
-      // Look for container with absolute time (weekly uses "Resets Thu 8:00 AM")
-      for (const div of allDivs) {
-        const text = div.textContent || '';
-        // Match day of week pattern for weekly reset
-        if (/resets?\s+(mon|tue|wed|thu|fri|sat|sun)/i.test(text) && /\d+%/.test(text)) {
-          if (div.className.includes('flex-row') || text.length < 200) {
-            weeklyContainer = div;
-            debugLog('Found weekly container via "Resets [day]" pattern');
-            break;
-          }
-        }
-      }
-    }
+    sessionContainer = findUsageRowByText(/^current\s+session$/i, errors);
+    weeklyContainer = findUsageRowByText(/^(?:all\s+models|this\s+week)$/i, errors);
 
     // Log if both containers are missing - may indicate page structure change
     // Only log if not in silent mode (to avoid spam during retry loops)
@@ -571,12 +493,36 @@ export function detectUsageElements(options?: DetectUsageElementsOptions): DOMDe
  */
 export async function waitForUsageElements(
   timeout: number = 10000,
-  pollInterval: number = 500
+  pollInterval: number = 500,
+  signal?: AbortSignal
 ): Promise<DOMDetectionResult> {
   const handler = getErrorHandler();
   const startTime = Date.now();
 
   return new Promise((resolve) => {
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+    const finish = (result: DOMDetectionResult) => {
+      clearTimeout(timerId);
+      signal?.removeEventListener('abort', abort);
+      resolve(result);
+    };
+    const abort = () => finish({
+      sessionContainer: null,
+      weeklyContainer: null,
+      sessionPercentage: null,
+      sessionTimer: null,
+      weeklyPercentage: null,
+      weeklyTimer: null,
+      isValid: false,
+      errors: [],
+      degraded: false,
+    });
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) {
+      abort();
+      return;
+    }
+
     const checkElements = () => {
       try {
         const elapsed = Date.now() - startTime;
@@ -587,7 +533,7 @@ export async function waitForUsageElements(
 
         if (result.isValid) {
           debugLog('Found usage elements after waiting');
-          resolve(result);
+          finish(result);
           return;
         }
 
@@ -602,11 +548,11 @@ export async function waitForUsageElements(
           );
           handler.logError(error);
           result.errors.push(error);
-          resolve(result);
+          finish(result);
           return;
         }
 
-        setTimeout(checkElements, pollInterval);
+        timerId = setTimeout(checkElements, pollInterval);
       } catch (e) {
         // In case of unexpected error, return empty result with error
         const error = handler.createError(
@@ -619,7 +565,7 @@ export async function waitForUsageElements(
         );
         handler.logError(error);
 
-        resolve({
+        finish({
           sessionContainer: null,
           weeklyContainer: null,
           sessionPercentage: null,
@@ -744,18 +690,6 @@ export function extractTextFromElements(detection: DOMDetectionResult): Extracte
     ),
     extractionErrors,
   };
-}
-
-/**
- * Check if the current page is the Claude.ai usage settings page
- */
-export function isUsagePage(): boolean {
-  try {
-    return window.location.href.includes('claude.ai/settings/usage');
-  } catch {
-    // Window or location may not be available
-    return false;
-  }
 }
 
 /**

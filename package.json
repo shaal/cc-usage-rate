@@ -10,7 +10,7 @@
     "package": "npm run build && cd dist && zip -r ../extension.zip .",
     "clean": "rm -rf dist extension.zip",
     "type-check": "tsc --noEmit",
-    "test": "npx playwright test",
+    "test": "npm run build && playwright test",
     "generate-icons": "node scripts/generate-icons.js"
   },
   "devDependencies": {

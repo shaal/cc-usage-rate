@@ -69,10 +69,7 @@
   </div>
 
   <script type="module">
-    // Import the tooltip manager
-    import { attachTooltip, generateSessionTooltipContent, generateWeeklyTooltipContent } from '../dist/content.js';
-
-    // Fallback if module isn't available - define inline
+    // Standalone tooltip fixture (the extension bundle is a classic script).
     function createSimpleTooltip() {
       const tooltip = document.createElement('div');
       tooltip.className = 'claude-usage-tooltip claude-usage-tooltip--enhanced';

@@ -45,9 +45,11 @@ A Chrome extension that provides visual feedback on your Claude.ai usage efficie
 ## Usage
 
 1. Install the extension
-2. Navigate to your Claude.ai account: [claude.ai/settings/usage](https://claude.ai/settings/usage)
+2. Open **Settings → Usage** in Claude: [claude.ai/new#settings/usage](https://claude.ai/new#settings/usage). The legacy `/settings/usage` page is also supported.
 3. The usage efficiency indicator will appear on the page
 4. Hover over the indicator for detailed information
+
+After updating an unpacked installation, click **Reload** for the extension in `chrome://extensions/` (or `brave://extensions/`) and refresh your Claude tab. The extension loads on Claude tabs so it can follow settings navigation, and displays indicators only while Usage is open.
 
 ## How It Works
 

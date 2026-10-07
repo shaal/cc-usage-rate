@@ -261,7 +261,7 @@ export function parsePercentage(
 }
 
 /**
- * Parse a session timer string (relative time like "2 hr 48 min" or "Resets in 1 hr 44 min")
+ * Parse a session countdown or a local clock reset such as "Resets at 2:00 PM".
  *
  * @param timerStr - The timer string to parse
  * @param errors - Optional array to collect errors
@@ -269,7 +269,8 @@ export function parsePercentage(
  */
 export function parseSessionTimer(
   timerStr: string | null,
-  errors?: TrackerError[]
+  errors?: TrackerError[],
+  referenceDate: Date = new Date()
 ): ParsedSessionTimer | null {
   const handler = getErrorHandler();
 
@@ -283,7 +284,30 @@ export function parseSessionTimer(
     // Strip "Resets in " prefix if present (Claude.ai format)
     trimmed = trimmed.replace(/^resets?\s+in\s+/i, '');
 
-    const timeResult = parseRelativeTime(trimmed);
+    let timeResult: RelativeTimeResult | null;
+    if (/^resets?\s+at\s+/i.test(trimmed)) {
+      const absoluteTime = parseAbsoluteTime(trimmed.replace(/^resets?\s+at\s+/i, ''));
+      timeResult = null;
+      if (absoluteTime) {
+        const reset = new Date(referenceDate);
+        reset.setHours(absoluteTime.hours, absoluteTime.minutes, 0, 0);
+        if (reset < referenceDate) reset.setDate(reset.getDate() + 1);
+        const remainingMinutes = Math.ceil((reset.getTime() - referenceDate.getTime()) / 60000);
+        // A session lasts five hours. Reject stale clock times instead of showing
+        // an almost 24-hour session; allow resets that cross local midnight.
+        if (remainingMinutes <= 300) {
+          timeResult = {
+            type: 'relative',
+            hours: Math.floor(remainingMinutes / 60),
+            minutes: remainingMinutes % 60,
+            totalMinutes: remainingMinutes,
+            originalString: timerStr,
+          };
+        }
+      }
+    } else {
+      timeResult = parseRelativeTime(trimmed);
+    }
 
     if (!timeResult) {
       const error = handler.createError(

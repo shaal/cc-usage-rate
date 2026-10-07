@@ -12,7 +12,7 @@
   ],
   "content_scripts": [
     {
-      "matches": ["https://claude.ai/settings/usage*"],
+      "matches": ["https://claude.ai/*"],
       "js": ["content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
