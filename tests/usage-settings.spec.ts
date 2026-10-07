@@ -98,8 +98,8 @@ test.describe('Usage URL and reset parsing', () => {
     // Too early in the window, or no usage yet, gives no projection.
     expect(projectUsage(10, 10, 290)).toBeNull();
     expect(projectUsage(0, 120, 180)).toBeNull();
-    expect([formatDuration(45), formatDuration(83), formatDuration(120), formatDuration(3000)])
-      .toEqual(['45m', '1h 23m', '2h', '2d 2h']);
+    expect([formatDuration(45), formatDuration(83), formatDuration(120), formatDuration(3000), formatDuration(4296)])
+      .toEqual(['45m', '1h 23m', '2h', '2d 2h', '3d']);
   });
 
   test('ships a classic content script on every Claude route', async () => {

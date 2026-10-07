@@ -84,8 +84,10 @@ export function formatDuration(minutes: number): string {
     const mins = total % 60;
     return mins ? `${hours}h ${mins}m` : `${hours}h`;
   }
-  const days = Math.floor(total / 1440);
-  const hours = Math.round((total % 1440) / 60);
+  // Round to whole hours first, so 2d 23.6h carries into "3d", not "2d 24h".
+  const totalHours = Math.round(total / 60);
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
   return hours ? `${days}d ${hours}h` : `${days}d`;
 }
 
