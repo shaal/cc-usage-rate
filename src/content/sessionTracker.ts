@@ -158,6 +158,26 @@ const TRACKER_STYLES = `
   margin-right: 4px;
 }
 
+/* Below Claude's usage bar: a full-width line under the bar */
+.claude-usage-indicator-container[data-placement="below-bar"] {
+  display: flex;
+  justify-content: flex-start;
+  /* Fill the bar's column without ever widening it, so bars stay aligned. */
+  width: 0;
+  min-width: 100%;
+  margin: 6px 0 0;
+  padding: 0;
+}
+.claude-usage-indicator-container[data-placement="below-bar"] .claude-usage-tracker-wrapper,
+.claude-usage-indicator-container[data-placement="below-bar"] .claude-usage-pace {
+  margin-left: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+.claude-usage-indicator-container[data-placement="below-bar"] .claude-usage-pace__text {
+  overflow: hidden;
+}
+
 /* Animation for indicator updates */
 @keyframes claude-usage-indicator-update {
   0% { transform: scale(1); }
@@ -456,7 +476,20 @@ export class SessionTracker {
       return existingContainer as HTMLElement;
     }
 
-    // Try to find the percentage element and insert adjacent to it
+    // Preferred: directly under Claude's usage bar, inside the bar's column.
+    // Adding the gauge as another item in the row makes the row wrap.
+    const bar = findProgressBar(container);
+    if (bar?.parentElement?.parentElement && bar.parentElement !== container) {
+      const indicatorContainer = document.createElement('div');
+      indicatorContainer.className = 'claude-usage-indicator-container';
+      indicatorContainer.setAttribute('data-indicator-type', type);
+      indicatorContainer.setAttribute('data-placement', 'below-bar');
+      bar.parentElement.insertAdjacentElement('afterend', indicatorContainer);
+      this.log(`Injected ${type} indicator below the usage bar`);
+      return indicatorContainer;
+    }
+
+    // Otherwise insert adjacent to the percentage element
     const percentageEl = type === 'session'
       ? this.state.detection?.sessionPercentage
       : this.state.detection?.weeklyPercentage;

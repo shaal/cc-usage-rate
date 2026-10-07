@@ -90,14 +90,14 @@ export function formatDuration(minutes: number): string {
 }
 
 /**
- * Builds the secondary line, such as "Limit in ~1h 25m at this rate".
+ * Builds the secondary line, such as "Limit in ~1h 25m".
  * Without a bar marker, the line also carries the pace: "Pace 40% · ...".
  */
 export function formatPaceDetail(data: PaceData): string {
   const projection = projectUsage(data.actual, data.elapsedMinutes, data.remainingMinutes);
   let text = '';
   if (projection?.kind === 'reached') text = 'Limit reached';
-  else if (projection?.kind === 'limit') text = `Limit in ~${formatDuration(projection.minutes)} at this rate`;
+  else if (projection?.kind === 'limit') text = `Limit in ~${formatDuration(projection.minutes)}`;
   else if (projection?.kind === 'end') text = `Ends ${data.period} near ${projection.percentage}%`;
 
   if (data.paceOnBar) return text;
@@ -238,10 +238,10 @@ export function updatePaceIndicator(container: HTMLDivElement, data: PaceData): 
 }
 
 /**
- * Finds Claude's progress bar for a usage row.
+ * Finds Claude's usage bar for a row. Claude renders it as role="meter".
  */
 export function findProgressBar(row: HTMLElement): HTMLElement | null {
-  const bars = row.querySelectorAll<HTMLElement>('[role="progressbar"]');
+  const bars = row.querySelectorAll<HTMLElement>('[role="meter"], [role="progressbar"], meter, progress');
   for (const bar of bars) {
     if (!bar.closest('[data-claude-tracker="true"]') && bar.getClientRects().length > 0) {
       return bar;
@@ -359,15 +359,20 @@ export const PACE_STYLES = `
   transition: transform 0.6s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 .claude-usage-pace__hub { fill: currentColor; }
-/* A fixed width keeps the session and weekly rows aligned. */
-.claude-usage-pace__text { width: 158px; }
-.claude-usage-pace__headline { font-size: 13px; }
+.claude-usage-pace__text { min-width: 0; }
+.claude-usage-pace__headline { font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
 .claude-usage-pace__value { font-weight: 700; font-variant-numeric: tabular-nums; }
 .claude-usage-pace[data-color="green"] .claude-usage-pace__value { color: var(--pace-green); }
 .claude-usage-pace[data-color="yellow"] .claude-usage-pace__value { color: var(--pace-yellow); }
 .claude-usage-pace[data-color="red"] .claude-usage-pace__value { color: var(--pace-red); }
 .claude-usage-pace__status { font-weight: 500; }
-.claude-usage-pace__detail { font-size: 11.5px; opacity: 0.65; font-variant-numeric: tabular-nums; }
+.claude-usage-pace__detail {
+  font-size: 11.5px;
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .claude-usage-pace__detail:empty { display: none; }
 

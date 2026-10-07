@@ -9,16 +9,20 @@ import { projectUsage, formatDuration } from '../src/components/PaceIndicator';
 
 // Representative markup using labels and reset formats observed on Claude on
 // 2026-10-07. All usage values are synthetic; no account data is captured here.
+// Bars follow Claude's Meter markup: role="meter" inside a wrapper, in a column
+// beside the "% used" text.
+const meter = (label: string, value: number) => `
+    <div class="bar-column"><div data-cds="Meter"><div role="meter" aria-label="${label}" aria-valuenow="${value}"
+      style="height:4px;overflow:hidden;border-radius:9999px"><div style="height:100%"></div></div></div></div>`;
+
 const usageRows = (legacy = false) => `
   <section id="session-row">
     <div><p>Current session</p><p id="session-reset">${legacy ? 'Resets in 1 hr' : 'Resets at 2:00 PM'}</p></div>
-    <div><p id="session-usage">59% used</p></div>
-    <div role="progressbar" aria-label="Current session" aria-valuenow="59"></div>
+    <div>${meter('Current session', 59)}<span id="session-usage">59% used</span></div>
   </section>
   <section id="weekly-row">
     <div><p>${legacy ? 'All models' : 'This week'}</p><p>Resets ${legacy ? 'Wed' : 'Wednesday'} 9:00 AM</p></div>
-    <div><p id="weekly-usage">7% used</p></div>
-    <div role="progressbar" aria-label="This week" aria-valuenow="7"></div>
+    <div>${meter('This week', 7)}<span id="weekly-usage">7% used</span></div>
   </section>
   <section id="fable-row">
     <p>Fable this week</p><p>Separate weekly limit for Fable · Resets Wednesday 9:00 AM</p><p>0% used</p>
@@ -173,13 +177,16 @@ test.describe('Built extension on usage settings', () => {
     await expect(page.locator(`${sessionIndicator} .claude-usage-pace__headline`)).toHaveText('\u221221 under pace');
     await expect(page.locator(`${sessionIndicator} .claude-usage-pace__detail`)).toHaveText(/^Ends session near 7\d%$/);
     // The overlay sits beside the bar so a clipping bar cannot cut off the label.
-    const overlay = page.locator('#session-row [role="progressbar"] + .claude-usage-pace-overlay');
+    const overlay = page.locator('#session-row [role="meter"] + .claude-usage-pace-overlay');
     await expect(overlay).toHaveCount(1);
     await expect(overlay).toHaveAttribute('data-direction', 'under');
     await expect(overlay.locator('.claude-usage-pace-overlay__marker')).toHaveAttribute('style', /left: 80%/);
     await expect(overlay.locator('.claude-usage-pace-overlay__label')).toHaveText('pace 80%');
-    await expect(page.locator('#weekly-row [role="progressbar"] + .claude-usage-pace-overlay')).toHaveCount(1);
+    await expect(page.locator('#weekly-row [role="meter"] + .claude-usage-pace-overlay')).toHaveCount(1);
     await expect(page.locator('#fable-row .claude-usage-pace-overlay')).toHaveCount(0);
+    // The gauge sits under the bar, inside the bar's column, so the row never wraps.
+    await expect(page.locator('#session-row .bar-column > [data-placement="below-bar"] .claude-usage-pace')).toHaveCount(1);
+    await expect(page.locator('#weekly-row .bar-column > [data-placement="below-bar"] .claude-usage-pace')).toHaveCount(1);
 
     // Updates move the marker band in place without adding a second overlay.
     await page.locator('#session-usage').evaluate(el => { el.firstChild!.nodeValue = '95% used'; });
