@@ -9,6 +9,8 @@
  * - Safe DOM operation wrappers
  */
 
+import { isUsagePage as isCurrentUsagePage } from './usagePage';
+
 /**
  * Error severity levels
  */
@@ -435,7 +437,7 @@ export function validatePageState(): PageStateResult {
   }
 
   try {
-    isUsagePage = window.location.href.includes('claude.ai/settings/usage');
+    isUsagePage = isCurrentUsagePage();
   } catch (e) {
     errors.push(handler.createError(
       ErrorCodes.WRONG_PAGE,

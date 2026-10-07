@@ -1,7 +1,7 @@
 /**
  * Claude Usage Tracker - Content Script Entry Point
  *
- * This content script runs on the claude.ai/settings/usage page and provides
+ * This content script activates on Claude's usage page or settings dialog and provides
  * visual feedback on usage efficiency through color-coded indicators.
  *
  * Includes comprehensive error handling for:
@@ -101,6 +101,8 @@ export async function refreshTracker(): Promise<void> {
 // Initialize the usage tracker when the DOM is ready
 async function initialize(): Promise<void> {
   const handler = getErrorHandler();
+  // Navigation and DOM updates can arrive together while the dialog is loading.
+  if (tracker) return;
   handler.info('Extension initialized');
 
   try {
@@ -134,7 +136,10 @@ async function initialize(): Promise<void> {
       debug: true,
     });
 
-    const success = await tracker.initialize();
+    const currentTracker = tracker;
+    const success = await currentTracker.initialize();
+    // The user may have closed or reopened settings while we waited for its DOM.
+    if (tracker !== currentTracker) return;
 
     if (success) {
       const state = tracker.getState();
@@ -196,6 +201,7 @@ async function initialize(): Promise<void> {
         'warning'
       );
       handler.logError(error);
+      cleanup();
     }
   } catch (e) {
     const error = handler.createError(
@@ -207,6 +213,7 @@ async function initialize(): Promise<void> {
       e instanceof Error ? e : new Error(String(e))
     );
     handler.logError(error);
+    cleanup();
   }
 }
 
@@ -224,15 +231,57 @@ function cleanup(): void {
   }
 }
 
-// Run initialization when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initialize);
-} else {
-  initialize();
+let lastUrl = '';
+let navigationObserver: MutationObserver | null = null;
+let navigationIntervalId: number | null = null;
+
+function syncUsageRoute(): void {
+  const href = window.location.href;
+  if (href === lastUrl) return;
+  lastUrl = href;
+
+  if (isUsagePage()) {
+    void initialize();
+  } else if (tracker) {
+    cleanup();
+  }
 }
 
-// Clean up on unload
-window.addEventListener('beforeunload', cleanup);
+function startNavigationTracking(): void {
+  if (navigationObserver) return;
+  lastUrl = '';
+  syncUsageRoute();
+  window.addEventListener('hashchange', syncUsageRoute);
+  window.addEventListener('popstate', syncUsageRoute);
+
+  // React navigation can use replaceState/pushState without firing hashchange.
+  // Observing DOM commits works across Chrome's isolated content-script world.
+  navigationObserver = new MutationObserver(syncUsageRoute);
+  navigationObserver.observe(document.body, { childList: true, subtree: true });
+  navigationIntervalId = window.setInterval(syncUsageRoute, 1000);
+}
+
+function stopNavigationTracking(): void {
+  navigationObserver?.disconnect();
+  navigationObserver = null;
+  if (navigationIntervalId !== null) {
+    window.clearInterval(navigationIntervalId);
+    navigationIntervalId = null;
+  }
+  window.removeEventListener('hashchange', syncUsageRoute);
+  window.removeEventListener('popstate', syncUsageRoute);
+  cleanup();
+}
+
+// Follow settings navigation for the lifetime of the Claude tab.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startNavigationTracking, { once: true });
+} else {
+  startNavigationTracking();
+}
+
+window.addEventListener('pagehide', stopNavigationTracking);
+window.addEventListener('pageshow', startNavigationTracking);
 
 // Export for testing purposes
 export { initialize, cleanup };

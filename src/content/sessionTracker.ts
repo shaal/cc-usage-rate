@@ -46,7 +46,6 @@ import {
 
 import {
   DebouncedMutationObserver,
-  getBatchUpdater,
   resetPerformanceUtils,
 } from '../utils/performanceUtils';
 
@@ -192,6 +191,7 @@ export class SessionTracker {
   private observer: DebouncedMutationObserver | null = null;
   private updateIntervalId: number | null = null;
   private styleElement: HTMLStyleElement | null = null;
+  private initializationController: AbortController | null = null;
 
   constructor(config: Partial<SessionTrackerConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -528,31 +528,19 @@ export class SessionTracker {
   /**
    * Remove existing indicators from the page
    *
-   * Performance optimized: Batches all removals into a single operation
-   * using requestAnimationFrame to minimize reflows.
+   * Remove synchronously so closing settings also works in background tabs,
+   * and new indicators never reuse containers queued for removal.
    */
   private removeIndicators(): void {
-    const batchUpdater = getBatchUpdater();
-
     // Collect all elements to remove first (read phase)
     const trackerWrappers = document.querySelectorAll('[data-claude-tracker="true"]');
     const indicatorContainers = document.querySelectorAll('.claude-usage-indicator-container[data-indicator-type]');
     const orphanedContainers = document.querySelectorAll('.claude-usage-indicator-container');
 
-    // Batch all removals into a single frame (write phase)
-    batchUpdater.schedule(() => {
-      // Remove all tracker wrappers
-      trackerWrappers.forEach(el => el.remove());
-
-      // Remove indicator containers we created
-      indicatorContainers.forEach(el => el.remove());
-
-      // Remove any orphaned indicator containers
-      orphanedContainers.forEach(el => {
-        if (el.children.length === 0) {
-          el.remove();
-        }
-      });
+    trackerWrappers.forEach(el => el.remove());
+    indicatorContainers.forEach(el => el.remove());
+    orphanedContainers.forEach(el => {
+      if (el.children.length === 0) el.remove();
     });
 
     this.state.sessionIndicator = null;
@@ -636,9 +624,19 @@ export class SessionTracker {
     try {
       // Detect DOM elements
       // Use silent mode if we haven't successfully detected before (to avoid spam during page load)
-      const hadPreviousSuccess = this.state.detection?.isValid ?? false;
+      const previousDetection = this.state.detection;
+      const hadPreviousSuccess = previousDetection?.isValid ?? false;
       const detection = detectUsageElements({ silent: !hadPreviousSuccess });
       this.state.detection = detection;
+      if (this.observer &&
+          (previousDetection?.sessionContainer !== detection.sessionContainer ||
+           previousDetection?.weeklyContainer !== detection.weeklyContainer)) {
+        // React may replace the dialog while its URL stays unchanged. Observe
+        // the new rows so subsequent text-node timer updates still reach us.
+        this.observer.disconnect();
+        this.observer = null;
+        this.setupObserver();
+      }
 
       // Add any detection errors to state
       if (detection.errors && detection.errors.length > 0) {
@@ -686,7 +684,10 @@ export class SessionTracker {
       this.log('Analysis complete:', analysis.summary);
 
       // Update or insert indicators
-      if (this.state.sessionIndicator || this.state.weeklyIndicator) {
+      const needsSessionIndicator = !!analysis.sessionAnalysis && this.config.showSessionIndicator;
+      const needsWeeklyIndicator = !!analysis.weeklyEfficiency && this.config.showWeeklyIndicator;
+      if ((!needsSessionIndicator || this.state.sessionIndicator?.isConnected) &&
+          (!needsWeeklyIndicator || this.state.weeklyIndicator?.isConnected)) {
         this.updateIndicators();
       } else {
         this.insertIndicators();
@@ -714,11 +715,13 @@ export class SessionTracker {
 
     // Patterns that indicate usage-related content
     const usagePatterns = [
-      /\d+%\s*used/i,                           // "44% used"
+      /\d+(?:\.\d+)?\s*%\s*used/i,             // "44% used" or "44.5 % used"
       /resets?\s+in\s+\d+/i,                    // "Resets in 2 hr 45 min"
+      /resets?\s+at\s+\d/i,                     // "Resets at 2:00 PM"
       /resets?\s+(mon|tue|wed|thu|fri|sat|sun)/i, // "Resets Thu 8:00 AM"
       /current\s*session/i,                     // "Current session"
       /all\s*models/i,                          // "All models"
+      /this\s+week/i,                           // "This week"
     ];
 
     return usagePatterns.some(pattern => pattern.test(text));
@@ -902,7 +905,10 @@ export class SessionTracker {
       this.injectStyles();
 
       // Wait for usage elements to appear
-      const detection = await waitForUsageElements();
+      this.initializationController = new AbortController();
+      const signal = this.initializationController.signal;
+      const detection = await waitForUsageElements(10000, 500, signal);
+      if (signal.aborted || !isUsagePage()) return false;
       this.state.detection = detection;
 
       // Collect any errors from detection
@@ -1002,6 +1008,8 @@ export class SessionTracker {
    */
   public destroy(): void {
     this.log('Destroying SessionTracker...');
+    this.initializationController?.abort();
+    this.initializationController = null;
 
     // Stop observer (DebouncedMutationObserver handles cleanup of debounce timers)
     if (this.observer) {
