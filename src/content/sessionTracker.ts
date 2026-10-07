@@ -815,6 +815,7 @@ export class SessionTracker {
         // For characterData mutations, check if the text actually changed
         // and contains usage-related content
         if (mutation.type === 'characterData') {
+          if (target.parentElement?.closest('.claude-usage-tooltip, [data-claude-tracker="true"]')) return false;
           const newValue = target.textContent || '';
           const oldValue = mutation.oldValue || '';
 
@@ -831,17 +832,21 @@ export class SessionTracker {
         // For childList mutations, check the target element
         const targetElement = target as HTMLElement;
 
-        // Skip mutations from our own indicator elements
-        if (targetElement.closest?.('[data-claude-tracker="true"]') ||
-            targetElement.closest?.('.claude-usage-indicator-container')) {
+        // Skip mutations from our own indicator elements and tooltip
+        const ownElement = (node: Node | null) => {
+          const element = node?.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : node?.parentElement;
+          return !!element?.closest?.('[data-claude-tracker="true"], .claude-usage-indicator-container, .claude-usage-tooltip');
+        };
+        if (ownElement(target)) {
           return false;
         }
 
-        // Skip adding or removing our own nodes, such as the progress bar marker
+        // Skip adding or removing our own nodes, such as the bar marker or tooltip
         const changedNodes = [...Array.from(mutation.addedNodes), ...Array.from(mutation.removedNodes)];
         if (changedNodes.length > 0 && changedNodes.every(node =>
           (node as HTMLElement).getAttribute?.('data-claude-tracker') === 'true' ||
-          (node as HTMLElement).classList?.contains('claude-usage-indicator-container'))) {
+          (node as HTMLElement).classList?.contains('claude-usage-indicator-container') ||
+          (node as HTMLElement).classList?.contains('claude-usage-tooltip'))) {
           return false;
         }
 

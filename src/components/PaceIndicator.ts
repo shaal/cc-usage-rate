@@ -166,6 +166,11 @@ function createGauge(): SVGSVGElement {
   return svg;
 }
 
+/** Sets an attribute only when it changes, so refreshes do not churn the DOM. */
+function setAttr(element: Element, name: string, value: string): void {
+  if (element.getAttribute(name) !== value) element.setAttribute(name, value);
+}
+
 /**
  * Creates the compact pace indicator.
  */
@@ -213,9 +218,10 @@ export function updatePaceIndicator(container: HTMLDivElement, data: PaceData): 
   const detailText = formatPaceDetail(data);
   const valueText = formatDelta(data.delta);
 
-  container.setAttribute('data-color', color);
-  container.setAttribute('data-percentage', String(data.delta));
-  container.setAttribute(
+  setAttr(container, 'data-color', color);
+  setAttr(container, 'data-percentage', String(data.delta));
+  setAttr(
+    container,
     'aria-label',
     `${Math.round(data.actual)}% used, expected ${Math.round(data.expected)}% by now, ` +
       `${valueText} points ${statusText}.${detailText ? ` ${detailText}.` : ''}`
@@ -312,8 +318,8 @@ export function syncPaceMarker(bar: HTMLElement, data: PaceData): void {
   const expected = clamp(data.expected);
   const color = getColorFromPercentage(data.delta);
 
-  overlay.setAttribute('data-color', color);
-  overlay.setAttribute('data-direction', actual >= expected ? 'over' : 'under');
+  setAttr(overlay, 'data-color', color);
+  setAttr(overlay, 'data-direction', actual >= expected ? 'over' : 'under');
 
   const band = overlay.querySelector<HTMLDivElement>('.claude-usage-pace-overlay__band')!;
   band.style.left = `${Math.min(actual, expected)}%`;
@@ -322,7 +328,7 @@ export function syncPaceMarker(bar: HTMLElement, data: PaceData): void {
   const marker = overlay.querySelector<HTMLDivElement>('.claude-usage-pace-overlay__marker')!;
   marker.style.left = `${expected}%`;
   // Keep the label inside the bar's width near either end.
-  marker.setAttribute('data-align', expected < 8 ? 'start' : expected > 92 ? 'end' : 'center');
+  setAttr(marker, 'data-align', expected < 8 ? 'start' : expected > 92 ? 'end' : 'center');
 
   const label = marker.querySelector<HTMLSpanElement>('.claude-usage-pace-overlay__label')!;
   const labelText = `pace ${Math.round(expected)}%`;

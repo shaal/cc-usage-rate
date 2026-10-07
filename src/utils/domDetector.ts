@@ -725,7 +725,8 @@ export function markDetectedElements(detection: DOMDetectionResult): void {
     if (!element) return;
 
     try {
-      if (isElementInDOM(element)) {
+      // Skip identical writes so refreshes do not churn Claude's DOM.
+      if (isElementInDOM(element) && element.getAttribute(attr) !== value) {
         element.setAttribute(attr, value);
       }
     } catch (e) {
