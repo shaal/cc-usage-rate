@@ -9,20 +9,23 @@ import { projectUsage, formatDuration } from '../src/components/PaceIndicator';
 
 // Representative markup using labels and reset formats observed on Claude on
 // 2026-10-07. All usage values are synthetic; no account data is captured here.
-// Bars follow Claude's Meter markup: role="meter" inside a wrapper, in a column
-// beside the "% used" text.
+// Rows follow Claude's markup and layout: a wrapping flex row of
+// [label column] [middle: bar column with role="meter", "% used"].
+const rowStyle = 'display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;column-gap:24px;row-gap:8px;width:640px';
+const labelStyle = 'display:flex;flex-direction:column;width:208px;flex-shrink:0';
+const middleStyle = 'display:flex;flex:1 1 0%;align-items:center;gap:12px;min-width:192px';
 const meter = (label: string, value: number) => `
-    <div class="bar-column"><div data-cds="Meter"><div role="meter" aria-label="${label}" aria-valuenow="${value}"
-      style="height:4px;overflow:hidden;border-radius:9999px"><div style="height:100%"></div></div></div></div>`;
+    <div class="bar-column" style="flex:1 1 0%"><div data-cds="Meter"><div role="meter" aria-label="${label}" aria-valuenow="${value}"
+      style="height:4px;overflow:hidden;border-radius:9999px;background:#ddd"><div style="height:100%"></div></div></div></div>`;
 
 const usageRows = (legacy = false) => `
-  <section id="session-row">
-    <div><p>Current session</p><p id="session-reset">${legacy ? 'Resets in 1 hr' : 'Resets at 2:00 PM'}</p></div>
-    <div>${meter('Current session', 59)}<span id="session-usage">59% used</span></div>
+  <section id="session-row" style="${rowStyle}">
+    <div style="${labelStyle}"><p>Current session</p><p id="session-reset">${legacy ? 'Resets in 1 hr' : 'Resets at 2:00 PM'}</p></div>
+    <div style="${middleStyle}">${meter('Current session', 59)}<span id="session-usage">59% used</span></div>
   </section>
-  <section id="weekly-row">
-    <div><p>${legacy ? 'All models' : 'This week'}</p><p>Resets ${legacy ? 'Wed' : 'Wednesday'} 9:00 AM</p></div>
-    <div>${meter('This week', 7)}<span id="weekly-usage">7% used</span></div>
+  <section id="weekly-row" style="${rowStyle}">
+    <div style="${labelStyle}"><p>${legacy ? 'All models' : 'This week'}</p><p>Resets ${legacy ? 'Wed' : 'Wednesday'} 9:00 AM</p></div>
+    <div style="${middleStyle}">${meter('This week', 7)}<span id="weekly-usage">7% used</span></div>
   </section>
   <section id="fable-row">
     <p>Fable this week</p><p>Separate weekly limit for Fable · Resets Wednesday 9:00 AM</p><p>0% used</p>
@@ -184,9 +187,16 @@ test.describe('Built extension on usage settings', () => {
     await expect(overlay.locator('.claude-usage-pace-overlay__label')).toHaveText('pace 80%');
     await expect(page.locator('#weekly-row [role="meter"] + .claude-usage-pace-overlay')).toHaveCount(1);
     await expect(page.locator('#fable-row .claude-usage-pace-overlay')).toHaveCount(0);
-    // The gauge sits under the bar, inside the bar's column, so the row never wraps.
-    await expect(page.locator('#session-row .bar-column > [data-placement="below-bar"] .claude-usage-pace')).toHaveCount(1);
-    await expect(page.locator('#weekly-row .bar-column > [data-placement="below-bar"] .claude-usage-pace')).toHaveCount(1);
+    // The gauge sits on the bar's line, to its right, in the two-line pace layout.
+    for (const row of ['#session-row', '#weekly-row']) {
+      await expect(page.locator(`${row}[data-claude-pace-layout] > [data-placement="beside-bar"] .claude-usage-pace`)).toHaveCount(1);
+      const bar = await page.locator(`${row} [role="meter"]`).boundingBox();
+      const gauge = await page.locator(`${row} .claude-usage-pace__gauge`).boundingBox();
+      const label = await page.locator(`${row} > div`).first().boundingBox();
+      expect(gauge!.x).toBeGreaterThan(bar!.x + bar!.width);
+      expect(bar!.y).toBeGreaterThan(label!.y + label!.height - 1);
+      expect(Math.abs((bar!.y + bar!.height / 2) - (gauge!.y + gauge!.height / 2))).toBeLessThan(20);
+    }
 
     // Updates move the marker band in place without adding a second overlay.
     await page.locator('#session-usage').evaluate(el => { el.firstChild!.nodeValue = '95% used'; });
@@ -198,6 +208,7 @@ test.describe('Built extension on usage settings', () => {
     // Closing settings removes the bar marker along with the gauges.
     await page.evaluate(() => { location.hash = 'settings/billing'; });
     await expect(page.locator('.claude-usage-pace-overlay')).toHaveCount(0);
+    await expect(page.locator('[data-claude-pace-layout]')).toHaveCount(0);
   });
 
   test('keeps legacy standalone usage settings working', async () => {

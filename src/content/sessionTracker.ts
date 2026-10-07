@@ -158,25 +158,49 @@ const TRACKER_STYLES = `
   margin-right: 4px;
 }
 
-/* Below Claude's usage bar: a full-width line under the bar */
-.claude-usage-indicator-container[data-placement="below-bar"] {
-  display: flex;
+/*
+ * Pace layout for a tracked row, applied with CSS only so React's nodes stay
+ * where React put them:
+ *   line 1: label and reset time ............................ 59% used
+ *   line 2: [usage bar with pace marker] [gauge  +19 over pace]
+ * The middle column becomes display: contents so its bar and "% used" text
+ * can be ordered as row items. !important wins over Claude's utility classes.
+ */
+[data-claude-pace-layout] {
+  flex-wrap: wrap !important;
+  align-items: center;
+  row-gap: 4px !important;
+}
+[data-claude-pace-layout] > [data-claude-pace-middle] { display: contents !important; }
+[data-claude-pace-layout] [data-claude-pace-used] {
+  order: 1 !important;
+  margin-left: auto !important;
+  align-self: flex-start !important;
+}
+/* The basis always forces the bar onto line 2, beside the gauge. */
+[data-claude-pace-layout] [data-claude-pace-bar] {
+  order: 2 !important;
+  flex: 1 1 calc(100% - 260px) !important;
+  min-width: 0 !important;
+  padding-top: 12px; /* room for the "pace 40%" label */
+}
+[data-claude-pace-layout] [data-claude-pace-bar] [role="meter"],
+[data-claude-pace-layout] [data-claude-pace-bar] [role="progressbar"] {
+  height: 8px;
+}
+[data-claude-pace-layout] > .claude-usage-indicator-container[data-placement="beside-bar"] {
+  order: 3 !important;
+  flex: 0 0 236px !important;
+  margin: 0 !important;
+  padding: 0 !important;
   justify-content: flex-start;
-  /* Fill the bar's column without ever widening it, so bars stay aligned. */
-  width: 0;
-  min-width: 100%;
-  margin: 6px 0 0;
-  padding: 0;
 }
-.claude-usage-indicator-container[data-placement="below-bar"] .claude-usage-tracker-wrapper,
-.claude-usage-indicator-container[data-placement="below-bar"] .claude-usage-pace {
-  margin-left: 0;
-  min-width: 0;
-  max-width: 100%;
-}
-.claude-usage-indicator-container[data-placement="below-bar"] .claude-usage-pace__text {
-  overflow: hidden;
-}
+[data-placement="beside-bar"] .claude-usage-tracker-wrapper { margin-left: 0; }
+[data-placement="beside-bar"] .claude-usage-pace { gap: 12px; }
+[data-placement="beside-bar"] .claude-usage-pace__gauge { width: 64px; height: auto; }
+[data-placement="beside-bar"] .claude-usage-pace__headline { font-size: 14px; }
+[data-placement="beside-bar"] .claude-usage-pace__value { font-size: 16px; }
+[data-placement="beside-bar"] .claude-usage-pace__detail { font-size: 12px; margin-top: 2px; }
 
 /* Animation for indicator updates */
 @keyframes claude-usage-indicator-update {
@@ -476,16 +500,28 @@ export class SessionTracker {
       return existingContainer as HTMLElement;
     }
 
-    // Preferred: directly under Claude's usage bar, inside the bar's column.
-    // Adding the gauge as another item in the row makes the row wrap.
+    // Preferred: beside Claude's usage bar, using the two-line pace layout.
+    // Claude's row is [label] [middle: bar column, "% used"]; the middle
+    // column must hold the bar inside a column of its own.
     const bar = findProgressBar(container);
-    if (bar?.parentElement?.parentElement && bar.parentElement !== container) {
+    const childContaining = (parent: HTMLElement, node: HTMLElement): HTMLElement | null =>
+      Array.from(parent.children).find(child => child.contains(node)) as HTMLElement | undefined ?? null;
+    const middle = bar ? childContaining(container, bar) : null;
+    const barColumn = middle && bar && middle !== bar ? childContaining(middle, bar) : null;
+    if (middle && barColumn) {
+      container.setAttribute('data-claude-pace-layout', '');
+      middle.setAttribute('data-claude-pace-middle', '');
+      barColumn.setAttribute('data-claude-pace-bar', '');
+      const used = Array.from(middle.children)
+        .find(child => child !== barColumn && /%\s*used/i.test(child.textContent || ''));
+      used?.setAttribute('data-claude-pace-used', '');
+
       const indicatorContainer = document.createElement('div');
       indicatorContainer.className = 'claude-usage-indicator-container';
       indicatorContainer.setAttribute('data-indicator-type', type);
-      indicatorContainer.setAttribute('data-placement', 'below-bar');
-      bar.parentElement.insertAdjacentElement('afterend', indicatorContainer);
-      this.log(`Injected ${type} indicator below the usage bar`);
+      indicatorContainer.setAttribute('data-placement', 'beside-bar');
+      container.appendChild(indicatorContainer);
+      this.log(`Injected ${type} indicator beside the usage bar`);
       return indicatorContainer;
     }
 
@@ -563,6 +599,10 @@ export class SessionTracker {
 
     trackerWrappers.forEach(el => el.remove());
     indicatorContainers.forEach(el => el.remove());
+    // Restore Claude's own row layout.
+    for (const attribute of ['data-claude-pace-layout', 'data-claude-pace-middle', 'data-claude-pace-bar', 'data-claude-pace-used']) {
+      document.querySelectorAll(`[${attribute}]`).forEach(el => el.removeAttribute(attribute));
+    }
     orphanedContainers.forEach(el => {
       if (el.children.length === 0) el.remove();
     });
