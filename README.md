@@ -4,7 +4,9 @@ A Chrome extension that provides visual feedback on your Claude.ai usage efficie
 
 ## Features
 
-- **Visual Usage Indicators**: Circular progress indicators show your usage efficiency at a glance
+- **Pace Indicators**: A compact gauge next to each limit shows how far ahead of or behind pace you are, in words ("+19 over pace")
+- **Pace Marker**: A marker on Claude's own usage bar shows where your usage is expected to be by now
+- **Projection**: Shows when you will reach the limit at your current rate, or where you will end the window
 - **Color-Coded Feedback**:
   - **Green**: Usage below expected - you have room to use more Claude!
   - **Yellow**: On track - your usage is perfectly paced

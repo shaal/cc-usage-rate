@@ -98,6 +98,9 @@ export async function refreshTracker(): Promise<void> {
   }
 }
 
+// One line per page load, so users can confirm which build is running.
+console.info(`[Claude Usage Tracker] v${chrome.runtime?.getManifest?.().version ?? 'unknown'} loaded`);
+
 // Initialize the usage tracker when the DOM is ready
 async function initialize(): Promise<void> {
   const handler = getErrorHandler();

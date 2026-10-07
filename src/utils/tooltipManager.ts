@@ -332,7 +332,7 @@ export function generateSessionTooltipContent(
   }
 
   return {
-    title: 'Session Efficiency',
+    title: 'Session pace',
     sections: [
       {
         title: 'What does this mean?',
@@ -345,8 +345,8 @@ export function generateSessionTooltipContent(
         title: 'Current Status',
         lines: [
           `Actual usage: ${Math.round(actualUsage)}%`,
-          `Expected usage: ${Math.round(expectedUsage)}%`,
-          `Difference: ${delta >= 0 ? '+' : ''}${Math.round(delta)}%`,
+          `Expected by now: ${Math.round(expectedUsage)}%`,
+          `Difference: ${delta >= 0 ? '+' : ''}${Math.round(delta)} pts`,
         ],
       },
     ],
@@ -385,8 +385,8 @@ export function generateWeeklyTooltipContent(
 
   const statusLines = [
     `Actual usage: ${Math.round(actualUsage)}%`,
-    `Expected usage: ${Math.round(expectedUsage)}%`,
-    `Difference: ${delta >= 0 ? '+' : ''}${Math.round(delta)}%`,
+    `Expected by now: ${Math.round(expectedUsage)}%`,
+    `Difference: ${delta >= 0 ? '+' : ''}${Math.round(delta)} pts`,
   ];
 
   if (hoursToZeroDeltaFormatted && delta > 0) {
@@ -398,7 +398,7 @@ export function generateWeeklyTooltipContent(
   }
 
   return {
-    title: 'Weekly Efficiency',
+    title: 'Weekly pace',
     sections: [
       {
         title: 'What does this mean?',

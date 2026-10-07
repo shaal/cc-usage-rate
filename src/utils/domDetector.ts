@@ -138,15 +138,36 @@ function getDetectorCache(): DOMQueryCache {
   return getDOMCache({ maxAge: 500, maxEntries: 50 });
 }
 
-/** Find the visible usage dialog, or use the legacy standalone page. */
+/** Exact text of a usage limit label, such as "Current session" or "This week". */
+const LIMIT_LABEL_PATTERN = /^(?:current\s+session|all\s+models|this\s+week|.+\s+this\s+week|sonnet\s+only)$/i;
+
+/**
+ * Find the visible usage dialog, or use the legacy standalone page.
+ *
+ * Match exact limit labels, not loose text, so another dialog that merely
+ * mentions "this week" is never chosen. Prefer a dialog with "Current session".
+ */
 function getUsageRoot(): HTMLElement {
   const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"], dialog[open], [aria-modal="true"]');
+  let best: HTMLElement | null = null;
+  let bestScore = 0;
   for (const dialog of dialogs) {
-    if (dialog.getClientRects().length > 0 && /current\s+session|this\s+week|all\s+models/i.test(dialog.textContent || '')) {
-      return dialog;
+    if (dialog.getClientRects().length === 0) continue;
+    let score = 0;
+    for (const element of dialog.querySelectorAll<HTMLElement>('p, span, div, h2, h3, h4, label')) {
+      const text = element.textContent?.trim() || '';
+      if (/^current\s+session$/i.test(text)) {
+        score = 2;
+        break;
+      }
+      if (LIMIT_LABEL_PATTERN.test(text)) score = 1;
+    }
+    if (score > bestScore) {
+      best = dialog;
+      bestScore = score;
     }
   }
-  return document.body;
+  return best ?? document.body;
 }
 
 /** Find the nearest row around its exact label, without crossing into other limits. */
@@ -155,13 +176,12 @@ function findUsageRowByText(labelPattern: RegExp, errors: TrackerError[]): HTMLE
 
   const root = getUsageRoot();
   const elements = getDetectorCache().querySelectorAll<HTMLElement>('div, p, span, h2, h3, h4, label', root);
-  const limitLabelPattern = /^(?:current\s+session|all\s+models|this\s+week|.+\s+this\s+week|sonnet\s+only)$/i;
   const labels = elements.filter(element => {
     const text = element.textContent?.trim() || '';
-    return limitLabelPattern.test(text) &&
+    return LIMIT_LABEL_PATTERN.test(text) &&
       element.getClientRects().length > 0 &&
       !element.closest('[data-claude-tracker="true"], .claude-usage-indicator-container') &&
-      !Array.from(element.children).some(child => limitLabelPattern.test(child.textContent?.trim() || ''));
+      !Array.from(element.children).some(child => LIMIT_LABEL_PATTERN.test(child.textContent?.trim() || ''));
   });
 
   for (const label of labels.filter(element => labelPattern.test(element.textContent?.trim() || ''))) {
@@ -705,7 +725,8 @@ export function markDetectedElements(detection: DOMDetectionResult): void {
     if (!element) return;
 
     try {
-      if (isElementInDOM(element)) {
+      // Skip identical writes so refreshes do not churn Claude's DOM.
+      if (isElementInDOM(element) && element.getAttribute(attr) !== value) {
         element.setAttribute(attr, value);
       }
     } catch (e) {

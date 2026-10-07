@@ -28,9 +28,13 @@ import {
 } from '../utils/usageDataExtractor';
 
 import {
-  createAutoColorIndicator,
-  updateCircularIndicator,
-} from '../components/CircularIndicator';
+  createPaceIndicator,
+  updatePaceIndicator,
+  findProgressBar,
+  syncPaceMarker,
+  PACE_STYLES,
+  type PaceData,
+} from '../components/PaceIndicator';
 
 import {
   generateSessionTooltipContent,
@@ -136,16 +140,6 @@ const TRACKER_STYLES = `
   position: relative;
 }
 
-/* Status label below indicator */
-.claude-usage-status-label {
-  font-size: 10px;
-  text-align: center;
-  margin-top: 4px;
-  opacity: 0.8;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  white-space: nowrap;
-}
-
 /* Indicator container in section - proper inline alignment */
 .claude-usage-indicator-container {
   display: inline-flex;
@@ -164,6 +158,57 @@ const TRACKER_STYLES = `
   margin-right: 4px;
 }
 
+/*
+ * Pace layout for a tracked row, applied with CSS only so React's nodes stay
+ * where React put them:
+ *   line 1: label and reset time ............................ 59% used
+ *   line 2: [usage bar with pace marker] [gauge  +19 over pace]
+ * A grid keeps both lines intact whatever spacing Claude uses. The middle
+ * column becomes display: contents so its bar and "% used" text become grid
+ * items. !important wins over Claude's utility classes.
+ */
+[data-claude-pace-layout] {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "label used" "bar gauge";
+  column-gap: 28px !important;
+  row-gap: 4px !important;
+  align-items: center !important;
+}
+[data-claude-pace-layout] > [data-claude-pace-middle] { display: contents !important; }
+[data-claude-pace-layout] > [data-claude-pace-label] {
+  grid-area: label;
+  width: auto !important;
+  min-width: 0;
+}
+[data-claude-pace-layout] [data-claude-pace-used] {
+  grid-area: used;
+  align-self: start !important;
+  justify-self: end;
+}
+[data-claude-pace-layout] [data-claude-pace-bar] {
+  grid-area: bar;
+  min-width: 0 !important;
+  padding-top: 12px; /* room for the "pace 40%" label */
+}
+[data-claude-pace-layout] [data-claude-pace-bar] [role="meter"],
+[data-claude-pace-layout] [data-claude-pace-bar] [role="progressbar"] {
+  height: 8px;
+}
+[data-claude-pace-layout] > .claude-usage-indicator-container[data-placement="beside-bar"] {
+  grid-area: gauge;
+  width: 236px;
+  margin: 0 !important;
+  padding: 0 !important;
+  justify-content: flex-start;
+}
+[data-placement="beside-bar"] .claude-usage-tracker-wrapper { margin-left: 0; }
+[data-placement="beside-bar"] .claude-usage-pace { gap: 12px; }
+[data-placement="beside-bar"] .claude-usage-pace__gauge { width: 64px; height: auto; }
+[data-placement="beside-bar"] .claude-usage-pace__headline { font-size: 14px; }
+[data-placement="beside-bar"] .claude-usage-pace__value { font-size: 16px; }
+[data-placement="beside-bar"] .claude-usage-pace__detail { font-size: 12px; margin-top: 2px; }
+
 /* Animation for indicator updates */
 @keyframes claude-usage-indicator-update {
   0% { transform: scale(1); }
@@ -175,11 +220,7 @@ const TRACKER_STYLES = `
   animation: claude-usage-indicator-update 0.3s ease-out;
 }
 
-/* Ensure indicators are visible and properly sized */
-.claude-usage-circular-indicator {
-  min-width: 48px;
-  min-height: 48px;
-}
+${PACE_STYLES}
 `;
 
 /**
@@ -285,89 +326,79 @@ export class SessionTracker {
   }
 
   /**
-   * Create the session efficiency indicator
+   * Build pace data for the session row
    */
-  private createSessionIndicator(): HTMLDivElement | null {
-    const handler = getErrorHandler();
-    const { analysis } = this.state;
+  private getSessionPaceData(): PaceData | null {
+    const sessionAnalysis = this.state.analysis?.sessionAnalysis;
+    if (!sessionAnalysis) return null;
 
-    if (!analysis?.sessionAnalysis) {
-      return null;
-    }
+    const { expectedUsage, sessionTime } = sessionAnalysis;
+    const delta = expectedUsage.usageDelta ?? 0;
+    const actual = expectedUsage.actualUsagePercentage ?? 0;
+    const expected = expectedUsage.expectedUsagePercentage;
 
-    try {
-      const { expectedUsage } = analysis.sessionAnalysis;
-      const delta = expectedUsage.usageDelta ?? 0;
-      const actualUsage = expectedUsage.actualUsagePercentage ?? 0;
-      const expectedUsagePercent = expectedUsage.expectedUsagePercentage;
-
-      // Generate rich tooltip content for enhanced hover experience
-      const tooltipContent = generateSessionTooltipContent(
-        actualUsage,
-        expectedUsagePercent,
+    return {
+      delta,
+      actual,
+      expected,
+      elapsedMinutes: sessionTime.elapsedMinutes,
+      remainingMinutes: sessionTime.remainingMinutes,
+      period: 'session',
+      tooltip: generateSessionTooltipContent(
+        actual,
+        expected,
         delta,
-        analysis.summary.sessionStatus
-      );
-
-      const indicator = createAutoColorIndicator(delta, {
-        size: this.config.indicatorSize,
-        tooltipContent,
-        className: 'claude-usage-session-indicator claude-usage-circular-indicator--animated',
-      });
-
-      indicator.setAttribute('data-tracker-type', 'session');
-      return indicator;
-    } catch (e) {
-      const error = handler.createError(
-        ErrorCodes.INDICATOR_CREATE_FAILED,
-        `Failed to create session indicator: ${e instanceof Error ? e.message : String(e)}`,
-        'rendering',
-        'error',
-        undefined,
-        e instanceof Error ? e : new Error(String(e))
-      );
-      this.logError(error);
-      return null;
-    }
+        this.state.analysis!.summary.sessionStatus
+      ),
+    };
   }
 
   /**
-   * Create the weekly efficiency indicator
+   * Build pace data for the weekly row
    */
-  private createWeeklyIndicator(): HTMLDivElement | null {
-    const handler = getErrorHandler();
-    const { analysis } = this.state;
+  private getWeeklyPaceData(): PaceData | null {
+    const analysis = this.state.analysis;
+    if (!analysis?.weeklyEfficiency) return null;
 
-    if (!analysis?.weeklyEfficiency) {
-      return null;
-    }
+    const { weeklyEfficiency, weeklyTime } = analysis;
+    const delta = weeklyEfficiency.efficiencyDelta;
 
-    try {
-      const { weeklyEfficiency, weeklyTime } = analysis;
-      const delta = weeklyEfficiency.efficiencyDelta;
-
-      // Generate rich tooltip content for enhanced hover experience
-      const tooltipContent = generateWeeklyTooltipContent(
+    return {
+      delta,
+      actual: weeklyEfficiency.actualUsagePercentage,
+      expected: weeklyEfficiency.expectedUsagePercentage,
+      elapsedMinutes: weeklyEfficiency.timeDetails.elapsedMinutes,
+      remainingMinutes: weeklyEfficiency.timeDetails.remainingMinutes,
+      period: 'week',
+      tooltip: generateWeeklyTooltipContent(
         weeklyEfficiency.actualUsagePercentage,
         weeklyEfficiency.expectedUsagePercentage,
         delta,
         weeklyTime?.remainingFormatted ?? null,
         analysis.summary.weeklyStatus,
         weeklyEfficiency.hoursToZeroDeltaFormatted
-      );
+      ),
+    };
+  }
 
-      const indicator = createAutoColorIndicator(delta, {
-        size: this.config.indicatorSize,
-        tooltipContent,
-        className: 'claude-usage-weekly-indicator claude-usage-circular-indicator--animated',
-      });
+  /**
+   * Create a pace indicator for one usage row
+   */
+  private createIndicator(type: 'session' | 'weekly'): HTMLDivElement | null {
+    const handler = getErrorHandler();
+    const data = this.getPaceData(type);
+    if (!data) {
+      return null;
+    }
 
-      indicator.setAttribute('data-tracker-type', 'weekly');
+    try {
+      const indicator = createPaceIndicator(data, `claude-usage-${type}-indicator`);
+      indicator.setAttribute('data-tracker-type', type);
       return indicator;
     } catch (e) {
       const error = handler.createError(
         ErrorCodes.INDICATOR_CREATE_FAILED,
-        `Failed to create weekly indicator: ${e instanceof Error ? e.message : String(e)}`,
+        `Failed to create ${type} indicator: ${e instanceof Error ? e.message : String(e)}`,
         'rendering',
         'error',
         undefined,
@@ -379,27 +410,36 @@ export class SessionTracker {
   }
 
   /**
+   * Draw the expected-usage marker on Claude's own progress bar, if present
+   */
+  private syncBarMarker(container: HTMLElement | null, data: PaceData | null): void {
+    if (!container || !data) return;
+    const bar = findProgressBar(container);
+    if (bar) {
+      syncPaceMarker(bar, data);
+    }
+  }
+
+  /**
+   * Pace data for a row, noting whether its bar can show the pace marker
+   */
+  private getPaceData(type: 'session' | 'weekly'): PaceData | null {
+    const data = type === 'session' ? this.getSessionPaceData() : this.getWeeklyPaceData();
+    const container = type === 'session'
+      ? this.state.detection?.sessionContainer
+      : this.state.detection?.weeklyContainer;
+    if (data && container) data.paceOnBar = !!findProgressBar(container);
+    return data;
+  }
+
+  /**
    * Create a wrapper element for the indicator
    */
-  private createIndicatorWrapper(indicator: HTMLDivElement, label: string): HTMLDivElement {
+  private createIndicatorWrapper(indicator: HTMLDivElement): HTMLDivElement {
     const wrapper = document.createElement('div');
     wrapper.className = 'claude-usage-tracker-wrapper';
     wrapper.setAttribute('data-claude-tracker', 'true');
-
-    // Create label
-    const labelEl = document.createElement('div');
-    labelEl.className = 'claude-usage-status-label';
-    labelEl.textContent = label;
-
-    // Add indicator and label to wrapper
-    const container = document.createElement('div');
-    container.style.display = 'flex';
-    container.style.flexDirection = 'column';
-    container.style.alignItems = 'center';
-    container.appendChild(indicator);
-    container.appendChild(labelEl);
-
-    wrapper.appendChild(container);
+    wrapper.appendChild(indicator);
     return wrapper;
   }
 
@@ -417,30 +457,32 @@ export class SessionTracker {
 
     // Create and insert session indicator
     if (this.config.showSessionIndicator && detection.sessionContainer && analysis.sessionAnalysis) {
-      this.state.sessionIndicator = this.createSessionIndicator();
+      this.state.sessionIndicator = this.createIndicator('session');
       if (this.state.sessionIndicator) {
-        const wrapper = this.createIndicatorWrapper(this.state.sessionIndicator, 'Efficiency');
+        const wrapper = this.createIndicatorWrapper(this.state.sessionIndicator);
 
         // Try to find a good insertion point in the session container
         const insertionPoint = this.findInsertionPoint(detection.sessionContainer, 'session');
         if (insertionPoint) {
           insertionPoint.appendChild(wrapper);
           this.log('Inserted session indicator');
+          this.syncBarMarker(detection.sessionContainer, this.getPaceData('session'));
         }
       }
     }
 
     // Create and insert weekly indicator
     if (this.config.showWeeklyIndicator && detection.weeklyContainer && analysis.weeklyEfficiency) {
-      this.state.weeklyIndicator = this.createWeeklyIndicator();
+      this.state.weeklyIndicator = this.createIndicator('weekly');
       if (this.state.weeklyIndicator) {
-        const wrapper = this.createIndicatorWrapper(this.state.weeklyIndicator, 'Efficiency');
+        const wrapper = this.createIndicatorWrapper(this.state.weeklyIndicator);
 
         // Try to find a good insertion point in the weekly container
         const insertionPoint = this.findInsertionPoint(detection.weeklyContainer, 'weekly');
         if (insertionPoint) {
           insertionPoint.appendChild(wrapper);
           this.log('Inserted weekly indicator');
+          this.syncBarMarker(detection.weeklyContainer, this.getPaceData('weekly'));
         }
       }
     }
@@ -465,7 +507,35 @@ export class SessionTracker {
       return existingContainer as HTMLElement;
     }
 
-    // Try to find the percentage element and insert adjacent to it
+    // Preferred: beside Claude's usage bar, using the two-line pace layout.
+    // Claude's row is [label] [middle: bar column, "% used"]; the middle
+    // column must hold the bar inside a column of its own.
+    const bar = findProgressBar(container);
+    const childContaining = (parent: HTMLElement, node: HTMLElement): HTMLElement | null =>
+      Array.from(parent.children).find(child => child.contains(node)) as HTMLElement | undefined ?? null;
+    const middle = bar ? childContaining(container, bar) : null;
+    const barColumn = middle && bar && middle !== bar ? childContaining(middle, bar) : null;
+    if (middle && barColumn) {
+      container.setAttribute('data-claude-pace-layout', '');
+      middle.setAttribute('data-claude-pace-middle', '');
+      Array.from(container.children)
+        .find(child => child !== middle && !child.classList.contains('claude-usage-indicator-container'))
+        ?.setAttribute('data-claude-pace-label', '');
+      barColumn.setAttribute('data-claude-pace-bar', '');
+      const used = Array.from(middle.children)
+        .find(child => child !== barColumn && /%\s*used/i.test(child.textContent || ''));
+      used?.setAttribute('data-claude-pace-used', '');
+
+      const indicatorContainer = document.createElement('div');
+      indicatorContainer.className = 'claude-usage-indicator-container';
+      indicatorContainer.setAttribute('data-indicator-type', type);
+      indicatorContainer.setAttribute('data-placement', 'beside-bar');
+      container.appendChild(indicatorContainer);
+      this.log(`Injected ${type} indicator beside the usage bar`);
+      return indicatorContainer;
+    }
+
+    // Otherwise insert adjacent to the percentage element
     const percentageEl = type === 'session'
       ? this.state.detection?.sessionPercentage
       : this.state.detection?.weeklyPercentage;
@@ -539,6 +609,10 @@ export class SessionTracker {
 
     trackerWrappers.forEach(el => el.remove());
     indicatorContainers.forEach(el => el.remove());
+    // Restore Claude's own row layout.
+    for (const attribute of ['data-claude-pace-layout', 'data-claude-pace-middle', 'data-claude-pace-label', 'data-claude-pace-bar', 'data-claude-pace-used']) {
+      document.querySelectorAll(`[${attribute}]`).forEach(el => el.removeAttribute(attribute));
+    }
     orphanedContainers.forEach(el => {
       if (el.children.length === 0) el.remove();
     });
@@ -563,11 +637,9 @@ export class SessionTracker {
           this.log('Session indicator removed from DOM, clearing reference');
           this.state.sessionIndicator = null;
         } else {
-          const delta = analysis.sessionAnalysis.expectedUsage.usageDelta ?? 0;
-          updateCircularIndicator(sessionIndicator, {
-            percentage: delta,
-          });
-          // Note: Removed animation class toggle to prevent mutation observer feedback loop
+          const data = this.getPaceData('session')!;
+          updatePaceIndicator(sessionIndicator, data);
+          this.syncBarMarker(this.state.detection?.sessionContainer ?? null, data);
         }
       } catch (e) {
         const error = handler.createError(
@@ -592,11 +664,9 @@ export class SessionTracker {
           this.log('Weekly indicator removed from DOM, clearing reference');
           this.state.weeklyIndicator = null;
         } else {
-          const delta = analysis.weeklyEfficiency.efficiencyDelta;
-          updateCircularIndicator(weeklyIndicator, {
-            percentage: delta,
-          });
-          // Note: Removed animation class toggle to prevent mutation observer feedback loop
+          const data = this.getPaceData('weekly')!;
+          updatePaceIndicator(weeklyIndicator, data);
+          this.syncBarMarker(this.state.detection?.weeklyContainer ?? null, data);
         }
       } catch (e) {
         const error = handler.createError(
@@ -755,6 +825,7 @@ export class SessionTracker {
         // For characterData mutations, check if the text actually changed
         // and contains usage-related content
         if (mutation.type === 'characterData') {
+          if (target.parentElement?.closest('.claude-usage-tooltip, [data-claude-tracker="true"]')) return false;
           const newValue = target.textContent || '';
           const oldValue = mutation.oldValue || '';
 
@@ -771,9 +842,21 @@ export class SessionTracker {
         // For childList mutations, check the target element
         const targetElement = target as HTMLElement;
 
-        // Skip mutations from our own indicator elements
-        if (targetElement.closest?.('[data-claude-tracker="true"]') ||
-            targetElement.closest?.('.claude-usage-indicator-container')) {
+        // Skip mutations from our own indicator elements and tooltip
+        const ownElement = (node: Node | null) => {
+          const element = node?.nodeType === Node.ELEMENT_NODE ? node as HTMLElement : node?.parentElement;
+          return !!element?.closest?.('[data-claude-tracker="true"], .claude-usage-indicator-container, .claude-usage-tooltip');
+        };
+        if (ownElement(target)) {
+          return false;
+        }
+
+        // Skip adding or removing our own nodes, such as the bar marker or tooltip
+        const changedNodes = [...Array.from(mutation.addedNodes), ...Array.from(mutation.removedNodes)];
+        if (changedNodes.length > 0 && changedNodes.every(node =>
+          (node as HTMLElement).getAttribute?.('data-claude-tracker') === 'true' ||
+          (node as HTMLElement).classList?.contains('claude-usage-indicator-container') ||
+          (node as HTMLElement).classList?.contains('claude-usage-tooltip'))) {
           return false;
         }
 
