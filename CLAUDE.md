@@ -39,7 +39,7 @@ DOM Detection → Text Extraction → Parsing → Analysis → Indicator Renderi
    - `sessionTimeCalculator.ts`: 5-hour session window calculations
    - `weeklyTimeCalculator.ts`: Weekly reset cycle calculations
 4. **SessionTracker** (`src/content/sessionTracker.ts`): Main integration class that wires everything together, manages MutationObserver for live updates
-5. **CircularIndicator** (`src/components/CircularIndicator.ts`): SVG gauge component with auto-coloring based on efficiency delta
+5. **PaceIndicator** (`src/components/PaceIndicator.ts`): Compact gauge, pace text, and projection beside each row, plus the expected-usage marker drawn on Claude's own progress bar (`[role="progressbar"]`). `CircularIndicator.ts` still holds the shared `getColorFromPercentage` thresholds.
 
 ### Entry Point
 

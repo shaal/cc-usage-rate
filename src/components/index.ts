@@ -15,6 +15,17 @@ export {
 } from './CircularIndicator';
 
 export {
+  createPaceIndicator,
+  updatePaceIndicator,
+  syncPaceMarker,
+  findProgressBar,
+  projectUsage,
+  formatDuration,
+  type PaceData,
+  type PaceProjection,
+} from './PaceIndicator';
+
+export {
   createWeeklyTracker,
   insertWeeklyTracker,
   createAndInsertWeeklyTracker,

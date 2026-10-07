@@ -5,6 +5,7 @@ import { resolve, join } from 'node:path';
 import vm from 'node:vm';
 import { isUsagePageUrl } from '../src/utils/usagePage';
 import { parseSessionTimer, parseWeeklyResetTime } from '../src/utils/usageDataExtractor';
+import { projectUsage, formatDuration } from '../src/components/PaceIndicator';
 
 // Representative markup using labels and reset formats observed on Claude on
 // 2026-10-07. All usage values are synthetic; no account data is captured here.
@@ -30,8 +31,8 @@ const usagePanel = (legacy = false) => `
     <div><h2>Your usage</h2><p>Fresh week. 7% of your weekly limit used.</p>${usageRows(legacy)}</div>
   </div>`;
 
-const sessionIndicator = '#session-row [data-indicator-type="session"] .claude-usage-circular-indicator';
-const weeklyIndicator = '#weekly-row [data-indicator-type="weekly"] .claude-usage-circular-indicator';
+const sessionIndicator = '#session-row [data-indicator-type="session"] .claude-usage-pace';
+const weeklyIndicator = '#weekly-row [data-indicator-type="weekly"] .claude-usage-pace';
 
 test.describe('Usage URL and reset parsing', () => {
   test('accepts legacy and hash routes and rejects unrelated pages', () => {
@@ -77,6 +78,20 @@ test.describe('Usage URL and reset parsing', () => {
     expect(parseWeeklyResetTime('Resets in 7 hr 31 min')).toMatchObject({
       isValid: true, remainingMinutes: 451,
     });
+  });
+
+  test('projects usage to the limit or to the end of the window', () => {
+    // 59% used two hours into a five-hour session reaches the limit in about 83 minutes.
+    const limit = projectUsage(59, 120, 180);
+    expect(limit?.kind).toBe('limit');
+    expect(limit?.kind === 'limit' && Math.round(limit.minutes)).toBe(83);
+    expect(projectUsage(23, 52 * 60, 116 * 60)).toEqual({ kind: 'end', percentage: 74 });
+    expect(projectUsage(100, 60, 240)).toEqual({ kind: 'reached' });
+    // Too early in the window, or no usage yet, gives no projection.
+    expect(projectUsage(10, 10, 290)).toBeNull();
+    expect(projectUsage(0, 120, 180)).toBeNull();
+    expect([formatDuration(45), formatDuration(83), formatDuration(120), formatDuration(3000)])
+      .toEqual(['45m', '1h 23m', '2h', '2d 2h']);
   });
 
   test('ships a classic content script on every Claude route', async () => {
@@ -146,7 +161,34 @@ test.describe('Built extension on usage settings', () => {
     await mountPanel();
     await expectCorrectIndicators();
     await page.locator(sessionIndicator).hover();
-    await expect(page.locator('.claude-usage-tooltip--visible')).toContainText('Session Efficiency');
+    await expect(page.locator('.claude-usage-tooltip--visible')).toContainText('Session pace');
+  });
+
+  test('describes pace in words and marks expected usage on Claude\'s progress bar', async () => {
+    await page.goto('https://claude.ai/new#settings/usage');
+    await mountPanel();
+    await expectCorrectIndicators();
+    // 59% used with one hour left of five: expected 80%, so 21 points under pace.
+    await expect(page.locator(sessionIndicator)).toHaveAttribute('data-color', 'green');
+    await expect(page.locator(`${sessionIndicator} .claude-usage-pace__headline`)).toHaveText('\u221221 under pace');
+    await expect(page.locator(`${sessionIndicator} .claude-usage-pace__detail`)).toHaveText(/^Pace 80% · ends session near 7\d%$/);
+    const overlay = page.locator('#session-row [role="progressbar"] > .claude-usage-pace-overlay');
+    await expect(overlay).toHaveCount(1);
+    await expect(overlay).toHaveAttribute('data-direction', 'under');
+    await expect(overlay.locator('.claude-usage-pace-overlay__marker')).toHaveAttribute('style', /left: 80%/);
+    await expect(page.locator('#weekly-row [role="progressbar"] > .claude-usage-pace-overlay')).toHaveCount(1);
+    await expect(page.locator('#fable-row .claude-usage-pace-overlay')).toHaveCount(0);
+
+    // Updates move the marker band in place without adding a second overlay.
+    await page.locator('#session-usage').evaluate(el => { el.firstChild!.nodeValue = '95% used'; });
+    await expect(page.locator(sessionIndicator)).toHaveAttribute('data-percentage', '15');
+    await expect(overlay).toHaveAttribute('data-direction', 'over');
+    await expect(page.locator(`${sessionIndicator} .claude-usage-pace__headline`)).toHaveText('+15 over pace');
+    await expect(page.locator('#session-row .claude-usage-pace-overlay')).toHaveCount(1);
+
+    // Closing settings removes the bar marker along with the gauges.
+    await page.evaluate(() => { location.hash = 'settings/billing'; });
+    await expect(page.locator('.claude-usage-pace-overlay')).toHaveCount(0);
   });
 
   test('keeps legacy standalone usage settings working', async () => {
